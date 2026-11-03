@@ -1,0 +1,30 @@
+<template>
+  <style>
+    @font-face { font-family: "Pretendard"; font-weight: 700; src: url("assets/fonts/Pretendard-Bold.woff2") format("woff2"); }
+    @font-face { font-family: "Pretendard"; font-weight: 900; src: url("assets/fonts/Pretendard-Black.woff2") format("woff2"); }
+    #root { position: absolute; inset: 0; font-family: "Pretendard"; color: #f4f1ea; }
+    .out-chip { position: absolute; top: 380px; width: 420px; height: 110px; border-radius: 55px; color: #0b1020; font-size: 44px; font-weight: 900; display: flex; align-items: center; justify-content: center; opacity: 0; }
+    #out-c1 { left: 250px; background: #ffb547; } #out-c2 { left: 750px; background: #4fd1c5; } #out-c3 { left: 1250px; background: #ff6b6b; }
+    #out-line { position: absolute; left: 0; width: 1920px; top: 560px; text-align: center; font-size: 92px; font-weight: 900; opacity: 0; }
+    #out-line em { font-style: normal; color: #ffb547; }
+    #out-sub { position: absolute; left: 0; width: 1920px; top: 700px; text-align: center; font-size: 38px; font-weight: 700; color: #8a93b8; opacity: 0; }
+  </style>
+  <div id="root" data-composition-id="outro" data-width="1920" data-height="1080">
+    <div id="out-c1" class="out-chip">코드로 만들고</div>
+    <div id="out-c2" class="out-chip">그래픽 얹고</div>
+    <div id="out-c3" class="out-chip">음악까지 붙이면</div>
+    <div id="out-line">편집 프로그램 없이, <em>말로</em> 영상을 뽑는다</div>
+    <div id="out-sub">Remotion · HyperFrames · OpenMontage</div>
+  </div>
+  <script>
+    const tl = gsap.timeline({ paused: true });
+    tl.fromTo(".out-chip", { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 0.4, ease: "power3.out", stagger: 0.35 }, 0.2);
+    // the three chips converge into the single closing line
+    tl.to("#out-c1", { x: 500, scale: 0.4, opacity: 0, duration: 0.5, ease: "power3.in" }, 1.9);
+    tl.to("#out-c3", { x: -500, scale: 0.4, opacity: 0, duration: 0.5, ease: "power3.in" }, 1.9);
+    tl.to("#out-c2", { scale: 0.4, opacity: 0, duration: 0.5, ease: "power3.in" }, 1.9);
+    tl.fromTo("#out-line", { opacity: 0, scale: 0.9, filter: "blur(10px)" }, { opacity: 1, scale: 1, filter: "blur(0px)", duration: 0.6, ease: "power4.out" }, 2.3);
+    tl.fromTo("#out-sub", { opacity: 0 }, { opacity: 1, duration: 0.5 }, 2.9);
+    window.__timelines["outro"] = tl;
+  </script>
+</template>

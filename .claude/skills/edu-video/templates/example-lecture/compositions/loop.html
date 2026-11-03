@@ -1,0 +1,44 @@
+<template>
+  <style>
+    @font-face { font-family: "Pretendard"; font-weight: 700; src: url("assets/fonts/Pretendard-Bold.woff2") format("woff2"); }
+    @font-face { font-family: "Pretendard"; font-weight: 900; src: url("assets/fonts/Pretendard-Black.woff2") format("woff2"); }
+    #root { position: absolute; inset: 0; font-family: "Pretendard"; color: #f4f1ea; }
+    #loop-title { position: absolute; left: 200px; top: 110px; font-size: 76px; font-weight: 900; opacity: 0; }
+    #loop-title em { font-style: normal; color: #4fd1c5; }
+    #loop-svg { position: absolute; left: 560px; top: 225px; width: 800px; height: 760px; }
+    #loop-core { position: absolute; left: 860px; top: 515px; width: 200px; height: 200px; border-radius: 50%; background: #ffb547; color: #0b1020; display: flex; align-items: center; justify-content: center; font-size: 44px; font-weight: 900; opacity: 0; }
+    .loop-node { position: absolute; width: 300px; text-align: center; font-size: 40px; font-weight: 700; padding: 22px 0; border-radius: 22px; background: #121a36; border: 2px solid #26315e; opacity: 0; }
+    #loop-n1 { left: 810px; top: 255px; }
+    #loop-n2 { left: 1190px; top: 580px; }
+    #loop-n3 { left: 810px; top: 885px; }
+    #loop-n4 { left: 430px; top: 580px; }
+    .loop-node small { display: block; font-size: 28px; color: #8a93b8; margin-top: 6px; }
+  </style>
+  <div id="root" data-composition-id="loop" data-width="1920" data-height="1080">
+    <div id="loop-title">코드라서, <em>클로드가 직접</em> 고친다</div>
+    <svg id="loop-svg" viewBox="0 0 800 760">
+      <circle id="loop-ring" cx="400" cy="390" r="300" fill="none" stroke="#4fd1c5" stroke-width="6" stroke-linecap="round" stroke-dasharray="1885" stroke-dashoffset="1885" transform="rotate(-90 400 390)" />
+    </svg>
+    <div id="loop-core">클로드</div>
+    <div id="loop-n1" class="loop-node">말로 지시<small>"글자 좀 크게"</small></div>
+    <div id="loop-n2" class="loop-node">코드 수정<small>fontSize 64 → 96</small></div>
+    <div id="loop-n3" class="loop-node">다시 렌더링<small>MP4</small></div>
+    <div id="loop-n4" class="loop-node">확인<small>미리보기</small></div>
+  </div>
+  <script>
+    const tl = gsap.timeline({ paused: true });
+    tl.fromTo("#loop-title", { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.5, ease: "power3.out" }, 0.2);
+    tl.fromTo("#loop-core", { opacity: 0, scale: 0.6 }, { opacity: 1, scale: 1, duration: 0.5, ease: "back.out(2)" }, 0.6);
+    const nodes = ["#loop-n1", "#loop-n2", "#loop-n3", "#loop-n4"];
+    nodes.forEach((n, i) => {
+      const at = 1.2 + i * 1.1;
+      tl.to("#loop-ring", { attr: { "stroke-dashoffset": 1885 - (1885 / 4) * i }, duration: 0.5, ease: "power2.inOut" }, at - 0.5);
+      tl.fromTo(n, { opacity: 0, y: 16 }, { opacity: 1, y: 0, duration: 0.4, ease: "power3.out" }, at);
+      tl.fromTo(n, { borderColor: "#ffb547" }, { borderColor: "#26315e", duration: 0.8 }, at + 0.2);
+    });
+    tl.to("#loop-ring", { attr: { "stroke-dashoffset": 0 }, duration: 0.6, ease: "power2.inOut" }, 5.0);
+    tl.to("#loop-core", { scale: 1.12, duration: 0.25, yoyo: true, repeat: 1, ease: "power2.out" }, 5.6);
+    tl.to("#root", { opacity: 0, duration: 0.35, ease: "power2.in" }, 6.55);
+    window.__timelines["loop"] = tl;
+  </script>
+</template>

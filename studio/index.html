@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Lecture Studio</title>
+<style>
+  :root {
+    --bg: #f6f5f1; --panel: #ffffff; --ink: #1d2030; --muted: #6b7083; --line: #e3e1da;
+    --accent: #c77700; --ok: #1f8a70; --warn: #b4442f; --chip: #efede6; --code: #f0efe9;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f1220; --panel: #171b2e; --ink: #ecebe6; --muted: #9298b0; --line: #2a3150;
+      --accent: #ffb547; --ok: #4fd1a5; --warn: #ff7b6b; --chip: #222843; --code: #11152a;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.55 "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif; }
+  header { display: flex; align-items: center; gap: 12px; padding: 14px 20px; border-bottom: 1px solid var(--line); }
+  header h1 { font-size: 18px; margin: 0; }
+  header .sub { color: var(--muted); font-size: 13px; }
+  .layout { display: grid; grid-template-columns: 260px 1fr; min-height: calc(100vh - 56px); }
+  aside { border-right: 1px solid var(--line); padding: 16px; }
+  main { padding: 20px 24px 80px; max-width: 1100px; }
+  h2 { font-size: 20px; margin: 0 0 4px; }
+  h3 { font-size: 15px; margin: 18px 0 8px; }
+  .muted { color: var(--muted); font-size: 13px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin: 12px 0; }
+  button { font: inherit; border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 8px; padding: 7px 12px; cursor: pointer; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #111; font-weight: 700; }
+  button.ok { background: var(--ok); border-color: var(--ok); color: #fff; font-weight: 700; }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  input, textarea, select { font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; width: 100%; }
+  textarea { resize: vertical; }
+  label { display: block; font-size: 13px; color: var(--muted); margin: 10px 0 4px; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .lec { display: block; width: 100%; text-align: left; margin: 4px 0; }
+  .lec.active { border-color: var(--accent); }
+  .steps { display: flex; gap: 6px; flex-wrap: wrap; margin: 14px 0; }
+  .step { padding: 6px 10px; border-radius: 999px; background: var(--chip); font-size: 13px; cursor: pointer; border: 1px solid transparent; }
+  .step.active { border-color: var(--accent); }
+  .step .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); margin-right: 6px; }
+  .step.approved .dot { background: var(--ok); }
+  .step.stale .dot, .step.editing .dot { background: var(--warn); }
+  pre { background: var(--code); border-radius: 8px; padding: 12px; white-space: pre-wrap; word-break: break-word; max-height: 360px; overflow: auto; font-size: 13px; margin: 0; }
+  table { width: 100%; border-collapse: collapse; }
+  td, th { border-bottom: 1px solid var(--line); padding: 6px 4px; vertical-align: top; text-align: left; font-size: 14px; }
+  .scene { border: 1px solid var(--line); border-radius: 10px; padding: 10px; margin: 8px 0; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .gate { display: flex; justify-content: space-between; align-items: center; gap: 12px; border-top: 1px dashed var(--line); margin-top: 16px; padding-top: 12px; }
+  .badge { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--chip); }
+  .badge.approved { background: var(--ok); color: #fff; }
+  .badge.stale, .badge.editing { background: var(--warn); color: #fff; }
+  #job { position: fixed; right: 16px; bottom: 16px; width: min(560px, calc(100vw - 32px)); display: none; }
+  #job pre { max-height: 260px; }
+  #toast { position: fixed; left: 50%; top: 12px; transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 8px 14px; border-radius: 8px; display: none; z-index: 10; }
+  img.snap { width: 100%; border-radius: 8px; border: 1px solid var(--line); }
+  video { width: 100%; border-radius: 8px; background: #000; }
+  .count { font-size: 12px; color: var(--muted); }
+  .count.over { color: var(--warn); }
+  @media (max-width: 760px) {
+    .layout { grid-template-columns: 1fr; }
+    aside { border-right: 0; border-bottom: 1px solid var(--line); }
+    main { padding: 16px; }
+    .grid2 { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<header><h1>Lecture Studio</h1><span class="sub">문서 → 진행자 없는 애니메이션 강의 · 단계마다 사람이 승인</span></header>
+<div class="layout">
+  <aside>
+    <h3 style="margin-top:0">강의</h3>
+    <div id="lectures"></div>
+    <div class="card">
+      <label>새 강의 이름 (영문/한글, 공백 없이)</label>
+      <input id="newSlug" placeholder="opensource-video-tools" />
+      <label>제목</label>
+      <input id="newTitle" placeholder="클로드로 영상 만드는 오픈소스 3개" />
+      <div class="row" style="margin-top:8px"><button class="primary" onclick="createLecture()">만들기</button></div>
+    </div>
+    <details class="card"><summary>이 PC 설정</summary>
+      <label>qwen-tts Python</label><input id="cfg_qwen_python" />
+      <label>기본 나레이션 백엔드</label>
+      <select id="cfg_narrate_backend"><option>customvoice</option><option>clone</option><option>silent</option></select>
+      <label>기본 화자 (customvoice)</label><input id="cfg_speaker" />
+      <label>내 목소리 프로필 (clone)</label><input id="cfg_voice" />
+      <label>Claude Code 명령</label><input id="cfg_claude_cmd" />
+      <div class="row" style="margin-top:8px"><button onclick="saveConfig()">저장</button></div>
+      <p class="muted">studio/config.local.json 에 저장 (git 제외, 맥북에서는 따로 설정)</p>
+    </details>
+  </aside>
+  <main id="main"><p class="muted">왼쪽에서 강의를 고르거나 새로 만드세요. 원문 문서는 <code>sources/</code> 폴더에 넣습니다.</p></main>
+</div>
+<div id="job" class="card"><div class="row" style="justify-content:space-between"><b id="jobTitle"></b><button onclick="hideJob()">닫기</button></div><pre id="jobLog"></pre></div>
+<div id="toast"></div>
+
+<script>
+const LABEL = { source: "1 원문", brief: "2 기획", script: "3 대본", narration: "4 나레이션", visuals: "5 장면", render: "6 렌더", publish: "7 게시" };
+const SHAPES = ["transform", "cycle", "checklist-terminal", "stack", "axis", "converge", "source-figure"];
+let cur = null, view = null, stage = "source", pollTimer = null, review = {};
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+function toast(msg) { const t = $("toast"); t.textContent = msg; t.style.display = "block"; setTimeout(() => (t.style.display = "none"), 2600); }
+
+async function api(path, body) {
+  const r = await fetch(path, body === undefined ? {} : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const j = await r.json();
+  if (!r.ok) { toast(j.error || "오류"); throw new Error(j.error); }
+  return j;
+}
+
+async function loadList() {
+  const j = await api("/api/lectures");
+  $("lectures").innerHTML = j.lectures.map((l) =>
+    `<button class="lec ${l.slug === cur ? "active" : ""}" onclick="openLecture('${esc(l.slug)}')">${esc(l.title)}<br><span class="muted">${l.approved}/7 승인</span></button>`).join("") || '<p class="muted">아직 없음</p>';
+  for (const k of Object.keys(j.config)) if ($("cfg_" + k)) $("cfg_" + k).value = j.config[k];
+}
+async function saveConfig() {
+  const body = {}; for (const k of ["qwen_python", "narrate_backend", "speaker", "voice", "claude_cmd"]) body[k] = $("cfg_" + k).value;
+  await api("/api/config", body); toast("설정 저장됨");
+}
+async function createLecture() {
+  const slug = $("newSlug").value.trim(); if (!slug) return toast("이름을 입력하세요");
+  toast("프로젝트 만드는 중… (npm에서 폰트·GSAP 받는 데 수십 초)");
+  await api("/api/lectures", { slug, title: $("newTitle").value.trim() || slug });
+  await loadList(); openLecture(slug);
+}
+async function openLecture(slug) {
+  cur = slug; view = await api(`/api/lectures/${encodeURIComponent(slug)}`);
+  if (!openLecture.keepStage) {
+    const st = view.state.stages; stage = view.stages.find((s) => (st[s] || {}).status !== "approved") || "publish";
+  }
+  openLecture.keepStage = false;
+  render(); loadList();
+  if (view.running) watchJob(view.running.id, view.running.kind);
+}
+async function refresh() { openLecture.keepStage = true; await openLecture(cur); }
+
+function status(s) { return (view.state.stages[s] || {}).status || "pending"; }
+function gate(s, extra = "") {
+  const st = view.state.stages[s] || {};
+  const label = { approved: `승인됨 ${st.approved_at || ""}`, stale: "앞 단계가 바뀌어 다시 승인 필요", editing: "수정됨 — 다시 승인 필요", pending: "검토 대기" }[status(s)];
+  return `<div class="gate"><span class="badge ${status(s)}">${label}</span><div class="row">${extra}<button class="ok" onclick="approve('${s}')">이 단계 승인 →</button></div></div>`;
+}
+
+function render() {
+  const st = view.state;
+  let h = `<h2>${esc(st.title)}</h2><div class="muted">lectures/${esc(st.slug)}</div><div class="steps">` +
+    view.stages.map((s) => `<span class="step ${status(s)} ${s === stage ? "active" : ""}" onclick="stage='${s}';render()"><span class="dot"></span>${LABEL[s]}</span>`).join("") + "</div>";
+  h += { source: pSource, brief: pBrief, script: pScript, narration: pNarration, visuals: pVisuals, render: pRender, publish: pPublish }[stage]();
+  $("main").innerHTML = h;
+  if (stage === "script") updateCounts();
+}
+
+/* 1 source */
+function pSource() {
+  const opts = view.sources.map((f) => `<option ${view.state.source === "sources/" + f ? "selected" : ""}>${esc(f)}</option>`).join("");
+  return `<div class="card"><h3 style="margin-top:0">원문 고르기</h3>
+    <p class="muted">PDF·HTML·Markdown 을 <code>sources/</code> 폴더에 넣은 뒤 새로고침하세요.</p>
+    <div class="row"><select id="srcFile" style="max-width:420px">${opts || "<option disabled>sources/ 가 비어 있음</option>"}</select>
+    <button class="primary" onclick="act('set_source',{file:$('srcFile').value})">텍스트 추출</button><button onclick="refresh()">새로고침</button></div>
+    <h3>추출 결과 미리보기</h3><pre>${esc(view.source_preview) || "아직 추출 전"}</pre>
+    <p class="muted">확인할 것: 표·목록이 깨지지 않았는지, 빠진 페이지가 없는지.</p>${gate("source")}</div>`;
+}
+
+/* 2 brief */
+function pBrief() {
+  const b = view.state.brief || {};
+  const f = (k, label, ph, ta) => `<label>${label}</label>${ta ? `<textarea id="b_${k}" rows="2" placeholder="${ph}">${esc(b[k])}</textarea>` : `<input id="b_${k}" value="${esc(b[k])}" placeholder="${ph}">`}`;
+  return `<div class="card"><h3 style="margin-top:0">기획 — 클로드가 대본을 쓰기 전에 정할 것</h3>
+    <label>제목</label><input id="b_title" value="${esc(view.state.title)}">
+    ${f("one_idea", "핵심 아이디어 한 문장 (끝나고 시청자가 말할 수 있어야 함)", "영상을 코드로 만들면 클로드가 말로 고쳐 준다", true)}
+    <div class="grid2"><div>${f("audience", "대상", "코딩 초보")}</div><div>${f("target_seconds", "목표 길이(초)", "60")}</div></div>
+    ${f("emphasis", "강조할 관점 / 빼고 싶은 내용", "라이선스 차이를 꼭 짚기", true)}
+    <div class="grid2"><div>${f("speaker", "화자 (customvoice)", "sohee")}</div><div>${f("voice", "내 목소리 프로필 (clone)", "me")}</div></div>
+    <div class="row" style="margin-top:10px"><button class="primary" onclick="saveBrief()">저장</button></div>${gate("brief")}</div>`;
+}
+async function saveBrief() {
+  const body = { title: $("b_title").value };
+  for (const k of ["one_idea", "audience", "emphasis", "target_seconds", "speaker", "voice"]) body[k] = $("b_" + k).value;
+  await act("save_brief", body); toast("저장됨");
+}
+
+/* 3 script */
+function pScript() {
+  const sc = view.scenes;
+  const scenes = sc ? sc.scenes.map((s, i) => `<div class="scene" data-i="${i}">
+      <div class="row"><input class="s_id" value="${esc(s.id)}" style="width:80px">
+        <select class="s_shape" style="width:200px">${SHAPES.map((x) => `<option ${x === s.shape ? "selected" : ""}>${x}</option>`).join("")}</select>
+        <span style="flex:1"></span><button onclick="moveScene(${i},-1)">↑</button><button onclick="moveScene(${i},1)">↓</button><button onclick="delScene(${i})">삭제</button></div>
+      <label>내레이션 <span class="count"></span></label><textarea class="s_narration" rows="2" oninput="updateCounts()">${esc(s.narration || s.text)}</textarea>
+      <div class="grid2"><div><label>화면 문구 ( / 로 구분)</label><input class="s_on" value="${esc((s.on_screen || []).join(" / "))}"></div>
+      <div><label>그림 설명</label><input class="s_visual" value="${esc(s.visual)}"></div></div>
+      <div class="grid2"><div><label>말투 지시 (customvoice instruct, 선택)</label><input class="s_instruct" value="${esc(s.instruct)}"></div>
+      <div><label>원문 위치</label><input class="s_ref" value="${esc(s.source_ref)}"></div></div></div>`).join("") : '<p class="muted">아직 대본이 없습니다.</p>';
+  return `<div class="card"><h3 style="margin-top:0">대본</h3>
+    <div class="row"><button class="primary" onclick="act('draft_script',{})">Claude로 초안 생성</button>
+    <button onclick="copyPrompt('script')">프롬프트 복사 (Claude Code에 직접 붙여넣기)</button><button onclick="refresh()">새로고침</button></div>
+    <p class="muted">검토할 것: 한 영상 = 한 아이디어, 장면당 40~55자, 원문에 없는 숫자 없음, 영어 이름은 한글 발음으로.</p>
+    <div id="scenes">${scenes}</div>
+    <div class="row"><button onclick="addScene()">장면 추가</button><button class="primary" onclick="saveScenes()">대본 저장</button></div>${gate("script")}</div>`;
+}
+function readScenes() {
+  const base = view.scenes || { title: view.state.title, language: "korean", scenes: [] };
+  const scenes = [...document.querySelectorAll("#scenes .scene")].map((el) => {
+    const q = (c) => el.querySelector(c).value.trim();
+    const s = { id: q(".s_id"), shape: q(".s_shape"), narration: q(".s_narration"), on_screen: q(".s_on").split("/").map((x) => x.trim()).filter(Boolean), visual: q(".s_visual"), source_ref: q(".s_ref") };
+    if (q(".s_instruct")) s.instruct = q(".s_instruct");
+    return s;
+  });
+  return { ...base, scenes };
+}
+function updateCounts() {
+  document.querySelectorAll("#scenes .scene").forEach((el) => {
+    const n = el.querySelector(".s_narration").value.replace(/\s/g, "").length;
+    const c = el.querySelector(".count"); c.textContent = `${n}자 · 약 ${(n / 7.5).toFixed(1)}초`; c.classList.toggle("over", n > 60);
+  });
+}
+function addScene() { view.scenes = readScenes(); const n = view.scenes.scenes.length + 1; view.scenes.scenes.push({ id: "s" + String(n).padStart(2, "0"), shape: "transform", narration: "", on_screen: [], visual: "" }); render(); }
+function delScene(i) { view.scenes = readScenes(); view.scenes.scenes.splice(i, 1); render(); }
+function moveScene(i, d) { view.scenes = readScenes(); const a = view.scenes.scenes; const j = i + d; if (j < 0 || j >= a.length) return; [a[i], a[j]] = [a[j], a[i]]; render(); }
+async function saveScenes() { await act("save_scenes", { scenes: readScenes() }); toast("대본 저장됨 — 이후 단계는 다시 승인 필요"); }
+
+/* 4 narration */
+function pNarration() {
+  const m = view.audio, t = Date.now();
+  const rows = m ? m.scenes.map((s) => `<tr><td><b>${esc(s.id)}</b><br><span class="muted">${s.start}s · ${s.duration}s</span></td>
+      <td>${s.file ? `<audio controls preload="none" src="/media/${encodeURIComponent(cur)}/build/audio/${esc(s.file)}?t=${t}" style="width:100%"></audio>` : '<span class="muted">내레이션 없음</span>'}
+      <div class="muted">${esc(((view.scenes || {}).scenes || []).find((x) => x.id === s.id)?.narration || "")}</div></td>
+      <td style="white-space:nowrap"><label style="display:inline"><input type="radio" name="r_${esc(s.id)}" value="ok" ${review[s.id] === "ok" ? "checked" : ""} onchange="review['${esc(s.id)}']='ok'" style="width:auto"> 좋음</label><br>
+      <label style="display:inline"><input type="radio" name="r_${esc(s.id)}" value="redo" ${review[s.id] === "redo" ? "checked" : ""} onchange="review['${esc(s.id)}']='redo'" style="width:auto"> 다시</label></td></tr>`).join("") : "";
+  return `<div class="card"><h3 style="margin-top:0">나레이션</h3>
+    <div class="row"><select id="nbackend" style="width:180px"><option value="">설정값 사용</option><option>customvoice</option><option>clone</option><option>silent</option></select>
+    <button class="primary" onclick="act('narrate',{backend:$('nbackend').value})">생성 (바뀐 장면만)</button>
+    <button onclick="redo()">'다시' 표시한 장면만 재생성</button></div>
+    <p class="muted">장면당 수십 초 걸립니다(GPU 기준 약 50초). silent 는 모델 없이 길이만 잡는 시험용.</p>
+    ${m ? `<p>총 ${m.total_duration}초 · ${esc(m.backend)} ${esc(m.speaker || m.voice || "")}</p>
+      <audio controls preload="none" src="/media/${encodeURIComponent(cur)}/build/audio/narration.wav?t=${t}" style="width:100%"></audio>
+      <table><tr><th style="width:110px">장면</th><th>듣기</th><th style="width:80px">판단</th></tr>${rows}</table>` : '<p class="muted">아직 생성 전</p>'}
+    <p class="muted">확인할 것: 발음(영어·숫자), 문장 끝 억양, 장면 간 톤 차이. 모두 '좋음'이어야 승인됩니다.</p>${gate("narration")}</div>`;
+}
+function redo() {
+  const ids = Object.keys(review).filter((k) => review[k] === "redo");
+  if (!ids.length) return toast("'다시'로 표시한 장면이 없습니다");
+  ids.forEach((k) => delete review[k]);
+  act("narrate", { backend: $("nbackend").value, force: ids });
+}
+
+/* 5 visuals */
+function pVisuals() {
+  const ids = ((view.scenes || {}).scenes || []).map((s) => s.id);
+  const snaps = view.snapshots.map((p) => `<img class="snap" src="/media/${encodeURIComponent(cur)}/${p}?t=${Date.now()}" alt="${esc(p)}">`).join("");
+  return `<div class="card"><h3 style="margin-top:0">장면 (모션그래픽)</h3>
+    <div class="row"><button class="primary" onclick="act('build_visuals',{})">Claude로 장면 제작</button>
+    <button onclick="copyPrompt('visuals')">프롬프트 복사</button><button onclick="act('check',{})">규칙 검사</button>
+    <button onclick="act('snapshot',{})">스냅샷 찍기</button></div>
+    <p class="muted">나레이션 길이(build/audio/manifest.json)에 맞춰 장면을 만듭니다. 미리보기는 해당 폴더에서 <code>npx hyperframes preview</code>.</p>
+    <h3>스냅샷</h3>${snaps || '<p class="muted">아직 없음 — 스냅샷 찍기</p>'}
+    <h3>장면별 피드백</h3>${ids.map((id) => `<label>${esc(id)}</label><input class="fb" data-id="${esc(id)}" placeholder="예: 제목을 더 크게, 화살표 대신 선이 그려지게">`).join("")}
+    <div class="row" style="margin-top:8px"><button class="primary" onclick="sendFeedback()">피드백 반영 (Claude)</button></div>${gate("visuals")}</div>`;
+}
+function sendFeedback() {
+  const fb = {}; document.querySelectorAll(".fb").forEach((el) => { if (el.value.trim()) fb[el.dataset.id] = el.value.trim(); });
+  if (!Object.keys(fb).length) return toast("피드백을 입력하세요");
+  act("build_visuals", { feedback: fb });
+}
+
+/* 6 render */
+function pRender() {
+  const vs = view.renders;
+  const last = vs[vs.length - 1];
+  return `<div class="card"><h3 style="margin-top:0">렌더 (버전 관리)</h3>
+    <div class="row"><input id="rnote" placeholder="이번 버전에서 바뀐 점" style="flex:1"><button class="primary" onclick="act('render',{note:$('rnote').value})">새 버전 렌더</button></div>
+    ${last ? `<h3>${esc(last.version)} · ${esc(last.note)}</h3><video controls src="/media/${encodeURIComponent(cur)}/renders/${esc(last.file)}"></video>` : '<p class="muted">아직 렌더 없음</p>'}
+    <table><tr><th>버전</th><th>날짜</th><th>커밋</th><th>길이</th><th>메모</th></tr>${vs.slice().reverse().map((v) =>
+      `<tr><td><a href="/media/${encodeURIComponent(cur)}/renders/${esc(v.file)}" target="_blank">${esc(v.version)}</a></td><td>${esc(v.created.slice(0, 10))}</td><td>${esc(v.source.commit)}${v.source.dirty ? "*" : ""}</td><td>${v.seconds ?? ""}s</td><td>${esc(v.note)}</td></tr>`).join("")}</table>
+    <p class="muted">* = 커밋 안 된 수정으로 렌더. 다시 만들 수 있게 하려면 먼저 git 커밋.</p>${gate("render")}</div>`;
+}
+
+/* 7 publish */
+function pPublish() {
+  const vs = view.renders, p = view.state.publish || {};
+  return `<div class="card"><h3 style="margin-top:0">게시 전 체크리스트</h3>
+    ${view.publish_checks.map((c, i) => `<label style="display:flex;gap:8px;color:var(--ink)"><input type="checkbox" class="pc" style="width:auto" ${p.at ? "checked" : ""}> ${esc(c)}</label>`).join("")}
+    <label>게시할 버전</label><select id="pver">${vs.slice().reverse().map((v) => `<option ${p.version === v.version ? "selected" : ""}>${esc(v.version)}</option>`).join("")}</select>
+    <label>게시 URL (게시 후 기록)</label><input id="purl" value="${esc(p.url)}" placeholder="https://youtu.be/...">
+    ${gate("publish")}</div>`;
+}
+
+async function approve(s) {
+  const body = { stage: s };
+  if (s === "narration") {
+    const ids = (view.audio?.scenes || []).filter((x) => x.file).map((x) => x.id);
+    if (!view.audio) return toast("나레이션을 먼저 생성하세요");
+    if (ids.some((id) => review[id] !== "ok")) return toast("모든 장면을 '좋음'으로 표시해야 승인됩니다");
+    body.review = Object.fromEntries(ids.map((id) => [id, "ok"]));
+  }
+  if (s === "publish") {
+    body.checks = [...document.querySelectorAll(".pc")].map((c) => c.checked);
+    body.version = $("pver")?.value; body.url = $("purl")?.value || "";
+  }
+  await api(`/api/lectures/${encodeURIComponent(cur)}/approve`, body);
+  toast(LABEL[s] + " 승인"); const i = view.stages.indexOf(s); stage = view.stages[Math.min(i + 1, 6)]; await refresh();
+}
+
+async function act(action, body) {
+  const j = await api(`/api/lectures/${encodeURIComponent(cur)}/${action}`, body);
+  if (j.job) watchJob(j.job, action); else await refresh();
+}
+function watchJob(id, kind) {
+  $("job").style.display = "block"; $("jobTitle").textContent = kind + " 실행 중…";
+  clearInterval(pollTimer);
+  pollTimer = setInterval(async () => {
+    const j = await (await fetch(`/api/jobs/${id}`)).json();
+    $("jobLog").textContent = j.log || ""; $("jobLog").scrollTop = 1e9;
+    if (j.status !== "running") {
+      clearInterval(pollTimer);
+      $("jobTitle").textContent = `${j.kind} ${j.status === "done" ? "완료" : "실패 (로그 확인)"}`;
+      await refresh();
+    }
+  }, 1500);
+}
+function hideJob() { $("job").style.display = "none"; }
+async function copyPrompt(k) { await navigator.clipboard.writeText(view.prompts[k]); toast("복사됨 — 이 폴더에서 연 Claude Code에 붙여넣기"); }
+
+loadList();
+</script>
+</body>
+</html>

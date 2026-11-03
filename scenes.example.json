@@ -1,0 +1,30 @@
+{
+  "title": "클로드로 영상 만드는 무료 오픈소스 3개",
+  "one_idea": "영상을 코드로 만들면 클로드가 말로 고치고 다시 뽑아준다",
+  "audience": "코딩 초보, 영상 편집 경험 없음",
+  "source": "sources/설치가이드.pdf",
+  "language": "korean",
+  "speaker": "sohee",
+  "voice": "me",
+  "format": { "width": 1920, "height": 1080, "fps": 30 },
+  "scenes": [
+    {
+      "id": "s01",
+      "shape": "transform",
+      "narration": "편집 프로그램 대신, 영상을 코드로 만든다면 어떨까요?",
+      "on_screen": ["편집 프로그램 대신", "코드로 영상을 만든다면?"],
+      "visual": "편집 타임라인 막대 3개가 접히며 코드 3줄로 바뀐다",
+      "source_ref": "p.1",
+      "instruct": "호기심을 끄는 밝은 톤으로"
+    },
+    {
+      "id": "s02",
+      "shape": "cycle",
+      "narration": "코드라서 클로드가 읽고 고치고, 다시 렌더링까지 해 줍니다.",
+      "on_screen": ["코드라서, 클로드가 직접 고친다"],
+      "visual": "말로 지시 → 코드 수정 → 다시 렌더링 → 확인, 원이 한 칸씩 그려진다",
+      "source_ref": "p.1",
+      "pause_after": 0.7
+    }
+  ]
+}

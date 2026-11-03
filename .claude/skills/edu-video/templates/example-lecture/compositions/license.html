@@ -1,0 +1,36 @@
+<template>
+  <style>
+    @font-face { font-family: "Pretendard"; font-weight: 400; src: url("assets/fonts/Pretendard-Regular.woff2") format("woff2"); }
+    @font-face { font-family: "Pretendard"; font-weight: 700; src: url("assets/fonts/Pretendard-Bold.woff2") format("woff2"); }
+    @font-face { font-family: "Pretendard"; font-weight: 900; src: url("assets/fonts/Pretendard-Black.woff2") format("woff2"); }
+    #root { position: absolute; inset: 0; font-family: "Pretendard"; color: #f4f1ea; }
+    #lic-title { position: absolute; left: 200px; top: 150px; font-size: 76px; font-weight: 900; opacity: 0; }
+    #lic-axis { position: absolute; left: 200px; top: 640px; width: 1520px; height: 8px; border-radius: 4px; background: linear-gradient(90deg, #ff6b6b, #ffb547, #4fd1c5); transform-origin: left center; }
+    .lic-end { position: absolute; top: 676px; font-size: 30px; font-weight: 700; color: #8a93b8; opacity: 0; }
+    .lic-pin { position: absolute; width: 440px; opacity: 0; }
+    .lic-pin .lic-dot { width: 36px; height: 36px; border-radius: 50%; border: 6px solid #0b1020; margin-bottom: 18px; }
+    .lic-pin h3 { font-size: 46px; font-weight: 900; }
+    .lic-pin p { font-size: 30px; font-weight: 700; color: #c9cde0; margin-top: 8px; line-height: 1.35; }
+    #lic-p1 { left: 330px; top: 360px; } #lic-p2 { left: 820px; top: 360px; } #lic-p3 { left: 1330px; top: 360px; }
+  </style>
+  <div id="root" data-composition-id="license" data-width="1920" data-height="1080">
+    <div id="lic-title">얼마나 자유롭게 쓸 수 있나</div>
+    <div id="lic-axis"></div>
+    <div class="lic-end" style="left: 200px">조건 있음</div>
+    <div class="lic-end" style="left: 1580px">완전 자유</div>
+    <div id="lic-p1" class="lic-pin"><div class="lic-dot" style="background: #ff6b6b"></div><h3>Remotion</h3><p>3인 이하 무료<br />4인 이상 회사는 유료</p></div>
+    <div id="lic-p2" class="lic-pin"><div class="lic-dot" style="background: #ffb547"></div><h3>OpenMontage</h3><p>AGPL — 고쳐서 서비스하면<br />소스 공개</p></div>
+    <div id="lic-p3" class="lic-pin"><div class="lic-dot" style="background: #4fd1c5"></div><h3>HyperFrames</h3><p>Apache-2.0<br />상업 이용도 무료</p></div>
+  </div>
+  <script>
+    const tl = gsap.timeline({ paused: true });
+    tl.fromTo("#lic-title", { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.5, ease: "power3.out" }, 0.2);
+    tl.fromTo("#lic-axis", { scaleX: 0 }, { scaleX: 1, duration: 0.8, ease: "power3.inOut" }, 0.5);
+    tl.fromTo(".lic-end", { opacity: 0 }, { opacity: 1, duration: 0.4 }, 1.1);
+    ["#lic-p1", "#lic-p2", "#lic-p3"].forEach((p, i) => {
+      tl.fromTo(p, { opacity: 0, y: -60 }, { opacity: 1, y: 0, duration: 0.5, ease: "back.out(1.8)" }, 1.5 + i * 1.5);
+    });
+    tl.to("#root", { opacity: 0, duration: 0.35, ease: "power2.in" }, 7.05);
+    window.__timelines["license"] = tl;
+  </script>
+</template>

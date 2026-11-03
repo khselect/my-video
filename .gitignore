@@ -1,7 +1,43 @@
+# --- dependencies / OS ---
 node_modules
 dist
 .DS_Store
-.env
+Thumbs.db
+__pycache__/
+*.pyc
 
-# Ignore the output video from Git but not videos you import into src/.
+# --- secrets & per-machine settings ---
+.env
+.env.*
+!.env.example
+studio/config.local.json
+
+# --- generated (rebuildable) ---
 out
+build/
+lectures/*/build/
+lectures/*/node_modules/
+lectures/*/.hyperframes/
+lectures/*/assets/vendor/
+lectures/*/assets/fonts/
+lectures/*/assets/voice/
+lectures/*/source/pages/
+
+# --- renders: keep the manifest, not the videos ---
+renders/*.mp4
+renders/*.webm
+renders/*.mov
+lectures/*/renders/*.mp4
+lectures/*/renders/*.webm
+lectures/*/renders/*.mov
+!**/renders/manifest.json
+
+# --- voice: never commit voice recordings or clone profiles ---
+voices/
+*.ref.wav
+*.pt
+
+# --- large media sources (PDF/HTML are tracked) ---
+sources/*.mp4
+sources/*.mov
+sources/*.wav

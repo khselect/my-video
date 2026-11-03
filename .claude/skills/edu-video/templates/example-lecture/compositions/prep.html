@@ -1,0 +1,48 @@
+<template>
+  <style>
+    @font-face { font-family: "Pretendard"; font-weight: 400; src: url("assets/fonts/Pretendard-Regular.woff2") format("woff2"); }
+    @font-face { font-family: "Pretendard"; font-weight: 700; src: url("assets/fonts/Pretendard-Bold.woff2") format("woff2"); }
+    @font-face { font-family: "Pretendard"; font-weight: 900; src: url("assets/fonts/Pretendard-Black.woff2") format("woff2"); }
+    #root { position: absolute; inset: 0; font-family: "Pretendard"; color: #f4f1ea; }
+    #prep-title { position: absolute; left: 200px; top: 150px; font-size: 76px; font-weight: 900; opacity: 0; }
+    #prep-term { position: absolute; left: 200px; top: 300px; width: 1000px; height: 600px; border-radius: 24px; background: #070a16; border: 2px solid #26315e; opacity: 0; }
+    #prep-bar { height: 56px; border-bottom: 2px solid #26315e; }
+    .prep-dot { position: absolute; top: 20px; width: 16px; height: 16px; border-radius: 50%; }
+    .prep-line { position: absolute; left: 48px; font-size: 38px; font-weight: 700; opacity: 0; }
+    .prep-line span { color: #8a93b8; font-weight: 400; }
+    .prep-ok { position: absolute; left: 640px; font-size: 38px; font-weight: 700; color: #4fd1c5; opacity: 0; }
+    #prep-note { position: absolute; left: 1300px; top: 420px; width: 440px; font-size: 44px; font-weight: 700; line-height: 1.35; opacity: 0; }
+    #prep-note em { font-style: normal; color: #ffb547; font-weight: 900; font-size: 120px; display: block; line-height: 1; }
+  </style>
+  <div id="root" data-composition-id="prep" data-width="1920" data-height="1080">
+    <div id="prep-title">시작 전 준비물</div>
+    <div id="prep-term">
+      <div id="prep-bar"></div>
+      <div class="prep-dot" style="left: 24px; background: #ff6b6b"></div>
+      <div class="prep-dot" style="left: 52px; background: #ffb547"></div>
+      <div class="prep-dot" style="left: 80px; background: #4fd1c5"></div>
+      <div id="prep-a1" class="prep-line" style="top: 110px"><span>$</span> node -v</div>
+      <div id="prep-b1" class="prep-ok" style="top: 110px">v22.23 ✓</div>
+      <div id="prep-a2" class="prep-line" style="top: 230px"><span>$</span> ffmpeg -version</div>
+      <div id="prep-b2" class="prep-ok" style="top: 230px">6.1 ✓</div>
+      <div id="prep-a3" class="prep-line" style="top: 350px"><span>$</span> python3 --version</div>
+      <div id="prep-b3" class="prep-ok" style="top: 350px">3.13 ✓</div>
+      <div id="prep-a4" class="prep-line" style="top: 470px"><span>$</span> claude</div>
+      <div id="prep-b4" class="prep-ok" style="top: 470px">ready ✓</div>
+    </div>
+    <div id="prep-note"><em>22+</em>HyperFrames는<br />Node.js 22 이상</div>
+  </div>
+  <script>
+    const tl = gsap.timeline({ paused: true });
+    tl.fromTo("#prep-title", { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.5, ease: "power3.out" }, 0.2);
+    tl.fromTo("#prep-term", { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 0.5, ease: "power3.out" }, 0.4);
+    for (let i = 1; i <= 4; i++) {
+      const at = 0.9 + (i - 1) * 0.9;
+      tl.fromTo("#prep-a" + i, { opacity: 0, x: -12 }, { opacity: 1, x: 0, duration: 0.3, ease: "power2.out" }, at);
+      tl.fromTo("#prep-b" + i, { opacity: 0, scale: 0.8 }, { opacity: 1, scale: 1, duration: 0.3, ease: "back.out(2.5)" }, at + 0.4);
+    }
+    tl.fromTo("#prep-note", { opacity: 0, x: 30 }, { opacity: 1, x: 0, duration: 0.5, ease: "power3.out" }, 1.6);
+    tl.to("#root", { opacity: 0, duration: 0.35, ease: "power2.in" }, 6.05);
+    window.__timelines["prep"] = tl;
+  </script>
+</template>
