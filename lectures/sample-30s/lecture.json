@@ -30,6 +30,11 @@
       "status": "approved",
       "approved_at": "2026-11-03T07:35:20",
       "note": "silent 길이 추정 (실제 음성은 PC에서)"
+    },
+    "visuals": {
+      "status": "approved",
+      "approved_at": "2026-11-03T07:37:28",
+      "note": "스냅샷 6장 확인, check 통과"
     }
   },
   "narration_review": {

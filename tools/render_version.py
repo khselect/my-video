@@ -35,7 +35,7 @@ def git_state(project: Path) -> dict:
         return {"commit": "nogit", "dirty": False, "branch": None, "changed": []}
     commit = run(["git", "rev-parse", "--short=7", "HEAD"], project, False).stdout.strip() or "nocommit"
     branch = run(["git", "rev-parse", "--abbrev-ref", "HEAD"], project, False).stdout.strip()
-    status = run(["git", "status", "--porcelain", "--untracked-files=normal", "--", ".", ":!renders"], project).stdout
+    status = run(["git", "status", "--porcelain", "--untracked-files=normal", "--", ".", ":!renders", ":!lecture.json", ":!.gitignore"], project).stdout
     changed = [line[3:] for line in status.splitlines() if line.strip()]
     return {"commit": commit, "dirty": bool(changed), "branch": branch, "changed": changed[:30]}
 

@@ -1,0 +1,6 @@
+
+# versioned renders (edu-video render_version.py)
+renders/*.mp4
+renders/*.webm
+renders/*.mov
+!renders/manifest.json
