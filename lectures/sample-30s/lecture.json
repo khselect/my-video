@@ -35,6 +35,11 @@
       "status": "approved",
       "approved_at": "2026-11-03T07:37:28",
       "note": "스냅샷 6장 확인, check 통과"
+    },
+    "render": {
+      "status": "approved",
+      "approved_at": "2026-11-03T07:39:07",
+      "note": "v001 확인"
     }
   },
   "narration_review": {

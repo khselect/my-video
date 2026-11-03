@@ -1,0 +1,26 @@
+{
+  "versions": [
+    {
+      "version": "v001",
+      "file": "v001_2026-11-03_6a6e56b.mp4",
+      "kind": "render",
+      "engine": "hyperframes",
+      "composition": null,
+      "created": "2026-11-03T07:38:17",
+      "render_seconds": 39.4,
+      "source": {
+        "commit": "6a6e56b",
+        "dirty": false,
+        "branch": "main",
+        "changed": []
+      },
+      "command": "npx hyperframes render -o renders/v001_2026-11-03_6a6e56b.mp4",
+      "note": "30초 샘플 (무음 자리표시 나레이션 + 자막)",
+      "bytes": 2138449,
+      "sha256": "a1c489a13ee327c65260d261c51d55bce657890208846311a1a174b1db0183bf",
+      "seconds": 29.57,
+      "resolution": "1920x1080",
+      "has_audio": true
+    }
+  ]
+}
