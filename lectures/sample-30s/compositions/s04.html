@@ -1,0 +1,36 @@
+<template>
+  <style>
+    @font-face { font-family: "Pretendard"; font-weight: 700; src: url("assets/fonts/Pretendard-Bold.woff2") format("woff2"); }
+    @font-face { font-family: "Pretendard"; font-weight: 900; src: url("assets/fonts/Pretendard-Black.woff2") format("woff2"); }
+    #root { position: absolute; inset: 0; font-family: "Pretendard"; color: #f4f1ea; }
+    #s04-title { position: absolute; left: 200px; top: 110px; font-size: 76px; font-weight: 900; opacity: 0; }
+    #s04-axis { position: absolute; left: 200px; top: 640px; width: 1520px; height: 8px; border-radius: 4px; background: linear-gradient(90deg, #ff6b6b, #ffb547, #4fd1c5); transform-origin: left center; }
+    .s04-end { position: absolute; top: 676px; font-size: 30px; font-weight: 700; color: #8a93b8; opacity: 0; }
+    .s04-pin { position: absolute; width: 440px; top: 330px; opacity: 0; }
+    .s04-pin .dot { width: 36px; height: 36px; border-radius: 50%; border: 6px solid #0b1020; margin-bottom: 18px; }
+    .s04-pin h3 { font-size: 48px; font-weight: 900; }
+    .s04-pin p { font-size: 32px; font-weight: 700; color: #c9cde0; margin-top: 8px; line-height: 1.35; }
+    #s04-p1 { left: 300px; } #s04-p2 { left: 820px; } #s04-p3 { left: 1330px; }
+  </style>
+  <div id="root" data-composition-id="s04" data-width="1920" data-height="1080">
+    <div id="s04-title">얼마나 자유롭게 쓸 수 있나</div>
+    <div id="s04-axis"></div>
+    <div class="s04-end" style="left: 200px">조건 있음</div>
+    <div class="s04-end" style="left: 1580px">완전 자유</div>
+    <div id="s04-p1" class="s04-pin"><div class="dot" style="background: #ff6b6b"></div><h3>Remotion</h3><p>3인 이하 무료<br />4인 이상 회사는 유료</p></div>
+    <div id="s04-p2" class="s04-pin"><div class="dot" style="background: #ffb547"></div><h3>OpenMontage</h3><p>AGPL — 고쳐서 서비스하면<br />소스 공개</p></div>
+    <div id="s04-p3" class="s04-pin"><div class="dot" style="background: #4fd1c5"></div><h3>HyperFrames</h3><p>Apache-2.0<br />상업 이용도 무료</p></div>
+  </div>
+  <script>
+    const tl = gsap.timeline({ paused: true });
+    tl.fromTo("#s04-title", { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.45, ease: "power3.out" }, 0.1);
+    tl.fromTo("#s04-axis", { scaleX: 0 }, { scaleX: 1, duration: 0.7, ease: "power3.inOut" }, 0.3);
+    tl.fromTo(".s04-end", { opacity: 0 }, { opacity: 1, duration: 0.3 }, 0.8);
+    // 리모션 ~0.6s, 하이퍼프레임즈 ~2.9s; OpenMontage pin sits between them, unspoken
+    tl.fromTo("#s04-p1", { opacity: 0, y: -60 }, { opacity: 1, y: 0, duration: 0.45, ease: "back.out(1.8)" }, 0.8);
+    tl.fromTo("#s04-p3", { opacity: 0, y: -60 }, { opacity: 1, y: 0, duration: 0.45, ease: "back.out(1.8)" }, 2.7);
+    tl.fromTo("#s04-p2", { opacity: 0, y: -60 }, { opacity: 0.85, y: 0, duration: 0.45, ease: "back.out(1.8)" }, 3.6);
+    tl.to("#root", { opacity: 0, duration: 0.3, ease: "power2.in" }, 5.45);
+    window.__timelines["s04"] = tl;
+  </script>
+</template>

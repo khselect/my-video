@@ -1,0 +1,42 @@
+{
+  "slug": "sample-30s",
+  "title": "클로드로 영상 만드는 오픈소스 3개 (30초 샘플)",
+  "source": "sources/설치가이드.pdf",
+  "brief": {
+    "one_idea": "편집 프로그램 없이, 도구 3개를 쌓으면 클로드에게 말로 영상을 시킬 수 있다",
+    "audience": "코딩 초보",
+    "emphasis": "라이선스 차이를 짚는다",
+    "target_seconds": "30",
+    "speaker": "sohee",
+    "voice": "me"
+  },
+  "stages": {
+    "source": {
+      "status": "approved",
+      "approved_at": "2026-11-03T07:35:05",
+      "note": "4쪽 모두 추출, 표 정상"
+    },
+    "brief": {
+      "status": "approved",
+      "approved_at": "2026-11-03T07:35:05",
+      "note": ""
+    },
+    "script": {
+      "status": "approved",
+      "approved_at": "2026-11-03T07:35:18",
+      "note": "장면 여백 추가"
+    },
+    "narration": {
+      "status": "approved",
+      "approved_at": "2026-11-03T07:35:20",
+      "note": "silent 길이 추정 (실제 음성은 PC에서)"
+    }
+  },
+  "narration_review": {
+    "s01": "ok",
+    "s02": "ok",
+    "s03": "ok",
+    "s04": "ok",
+    "s05": "ok"
+  }
+}

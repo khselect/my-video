@@ -1,0 +1,43 @@
+<template>
+  <style>
+    @font-face { font-family: "Pretendard"; font-weight: 700; src: url("assets/fonts/Pretendard-Bold.woff2") format("woff2"); }
+    @font-face { font-family: "Pretendard"; font-weight: 900; src: url("assets/fonts/Pretendard-Black.woff2") format("woff2"); }
+    #root { position: absolute; inset: 0; font-family: "Pretendard"; color: #f4f1ea; }
+    #s01-panel { position: absolute; left: 200px; top: 260px; width: 760px; height: 480px; border-radius: 28px; background: #121a36; border: 2px solid #26315e; overflow: hidden; }
+    #s01-label { position: absolute; left: 36px; top: 28px; font-size: 30px; font-weight: 700; color: #8a93b8; letter-spacing: 0.04em; }
+    .s01-track { position: absolute; left: 36px; height: 56px; border-radius: 12px; transform-origin: left center; }
+    #s01-t1 { top: 120px; width: 520px; background: #ffb547; }
+    #s01-t2 { top: 210px; width: 380px; background: #4fd1c5; }
+    #s01-t3 { top: 300px; width: 600px; background: #ff6b6b; }
+    .s01-code { position: absolute; left: 40px; font-weight: 700; font-size: 34px; opacity: 0; }
+    #s01-c1 { top: 128px; } #s01-c2 { top: 218px; } #s01-c3 { top: 308px; }
+    .s01-code b { color: #ffb547; } .s01-code i { font-style: normal; color: #4fd1c5; }
+    #s01-l1 { position: absolute; left: 1060px; top: 340px; font-size: 64px; font-weight: 700; color: #8a93b8; }
+    #s01-l2 { position: absolute; left: 1060px; top: 430px; font-size: 92px; font-weight: 900; line-height: 1.15; opacity: 0; }
+    #s01-l2 em { font-style: normal; color: #ffb547; }
+  </style>
+  <div id="root" data-composition-id="s01" data-width="1920" data-height="1080">
+    <div id="s01-panel">
+      <div id="s01-label">편집 타임라인</div>
+      <div id="s01-t1" class="s01-track"></div>
+      <div id="s01-t2" class="s01-track"></div>
+      <div id="s01-t3" class="s01-track"></div>
+      <div id="s01-c1" class="s01-code"><b>"제목 크게"</b> → 96px</div>
+      <div id="s01-c2" class="s01-code"><i>"1초 뒤에"</i> → from 30</div>
+      <div id="s01-c3" class="s01-code"><b>"다시 뽑아"</b> → MP4</div>
+    </div>
+    <div id="s01-l1">편집 프로그램 없이</div>
+    <div id="s01-l2"><em>말로</em> 영상을<br />만들 수 있을까?</div>
+  </div>
+  <script>
+    const tl = gsap.timeline({ paused: true });
+    // "편집 프로그램 없이" is on screen at 0 s (thumbnail); "말로만" lands around 1.6 s
+    tl.fromTo("#s01-l1", { x: 0 }, { x: 10, duration: 1.6, ease: "none" }, 0);
+    tl.to(".s01-track", { scaleX: 0.02, opacity: 0.5, duration: 0.4, ease: "power2.in", stagger: 0.08 }, 1.2);
+    tl.fromTo(".s01-code", { opacity: 0, x: -20 }, { opacity: 1, x: 0, duration: 0.35, ease: "power3.out", stagger: 0.14 }, 1.55);
+    tl.to("#s01-label", { color: "#4fd1c5", duration: 0.3 }, 1.55);
+    tl.fromTo("#s01-l2", { opacity: 0, y: 30, filter: "blur(8px)" }, { opacity: 1, y: 0, filter: "blur(0px)", duration: 0.55, ease: "power4.out" }, 1.7);
+    tl.to("#root", { opacity: 0, duration: 0.3, ease: "power2.in" }, 4.65);
+    window.__timelines["s01"] = tl;
+  </script>
+</template>

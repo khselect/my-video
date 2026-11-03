@@ -1,0 +1,79 @@
+{
+  "title": "클로드로 영상 만드는 오픈소스 3개 (30초 샘플)",
+  "one_idea": "편집 프로그램 없이, 도구 3개를 쌓으면 클로드에게 말로 영상을 시킬 수 있다",
+  "audience": "코딩 초보, 영상 편집 경험 없음",
+  "source": "sources/설치가이드.pdf",
+  "language": "korean",
+  "speaker": "sohee",
+  "voice": "me",
+  "format": {
+    "width": 1920,
+    "height": 1080,
+    "fps": 30
+  },
+  "scenes": [
+    {
+      "id": "s01",
+      "shape": "transform",
+      "narration": "편집 프로그램 없이, 말로만 강의 영상을 만들 수 있을까요?",
+      "on_screen": [
+        "편집 프로그램 없이",
+        "말로 영상을?"
+      ],
+      "visual": "편집 타임라인 막대 3개가 접히며 코드 줄로 바뀐다",
+      "source_ref": "p.1",
+      "instruct": "호기심을 끄는 밝은 톤으로",
+      "pause_after": 1.4
+    },
+    {
+      "id": "s02",
+      "shape": "stack",
+      "narration": "엔진은 리모션, 그래픽은 하이퍼프레임즈, 확장은 오픈몽타주가 맡습니다.",
+      "on_screen": [
+        "Remotion · 엔진",
+        "HyperFrames · 그래픽",
+        "OpenMontage · 확장"
+      ],
+      "visual": "세 층이 아래에서부터 떨어져 쌓인다",
+      "source_ref": "p.1",
+      "pause_after": 1.4
+    },
+    {
+      "id": "s03",
+      "shape": "checklist-terminal",
+      "narration": "준비물은 노드 이십이 이상, 에프에프엠펙, 그리고 파이썬입니다.",
+      "on_screen": [
+        "node -v → 22+",
+        "ffmpeg",
+        "python 3.10+"
+      ],
+      "visual": "터미널에 명령이 찍히고 ✓가 붙는다",
+      "source_ref": "p.1",
+      "pause_after": 1.4
+    },
+    {
+      "id": "s04",
+      "shape": "axis",
+      "narration": "리모션은 네 명 이상 회사면 유료, 하이퍼프레임즈는 상업용도 무료예요.",
+      "on_screen": [
+        "Remotion: 4인 이상 유료",
+        "OpenMontage: AGPL",
+        "HyperFrames: Apache-2.0"
+      ],
+      "visual": "조건 있음 ↔ 완전 자유 축 위에 핀이 떨어진다",
+      "source_ref": "p.2-3",
+      "pause_after": 1.4
+    },
+    {
+      "id": "s05",
+      "shape": "converge",
+      "narration": "코드로 만들고, 그래픽을 얹고, 음악까지. 이제 말로 영상을 뽑으세요.",
+      "on_screen": [
+        "편집 프로그램 없이, 말로 영상을 뽑는다"
+      ],
+      "visual": "칩 세 개가 가운데로 모여 결론 한 줄이 된다",
+      "source_ref": "p.3",
+      "pause_after": 2.6
+    }
+  ]
+}
