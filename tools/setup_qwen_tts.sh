@@ -6,11 +6,12 @@
 # Downloads both models narrate.py uses:
 #   <SIZE>-CustomVoice  built-in speakers (narrate.py --backend customvoice, the default)
 #   <SIZE>-Base         voice clone (voice_clone.py, narrate.py --backend clone)
+# Env: QWEN_VENV=<dir> puts the venv elsewhere (e.g. video-tools/qwen-tts-env); models stay in ~/.edu-video/models
 set -euo pipefail
 SIZE="${1:-1.7B}"
 MODEL="Qwen/Qwen3-TTS-12Hz-${SIZE}-Base"
 HOME_DIR="$HOME/.edu-video"
-VENV="$HOME_DIR/qwen-venv"
+VENV="${QWEN_VENV:-$HOME_DIR/qwen-venv}"   # override: QWEN_VENV=../qwen-tts-env
 mkdir -p "$HOME_DIR/models" "$HOME_DIR/voices"
 
 PY="$(command -v python3.12 || command -v python3.11 || command -v python3)"
