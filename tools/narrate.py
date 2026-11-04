@@ -34,9 +34,18 @@ from array import array
 from pathlib import Path
 
 SR = 24000
+LOCAL_MODELS = Path.home() / ".edu-video" / "models"   # where setup_qwen_tts.sh downloads
+
+
+def model_ref(env: str, hf_id: str) -> str:
+    """Env override > local copy from setup_qwen_tts.sh > Hugging Face id (would re-download)."""
+    local = LOCAL_MODELS / hf_id.split("/")[-1]
+    return os.environ.get(env) or (str(local) if (local / "config.json").exists() else hf_id)
+
+
 MODELS = {
-    "customvoice": os.environ.get("QWEN_TTS_CUSTOMVOICE_MODEL", "Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice"),
-    "clone": os.environ.get("QWEN_TTS_MODEL", "Qwen/Qwen3-TTS-12Hz-1.7B-Base"),
+    "customvoice": model_ref("QWEN_TTS_CUSTOMVOICE_MODEL", "Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice"),
+    "clone": model_ref("QWEN_TTS_MODEL", "Qwen/Qwen3-TTS-12Hz-1.7B-Base"),
 }
 VOICES_DIR = Path(os.environ.get("EDU_VOICES_DIR", Path.home() / ".edu-video" / "voices"))
 

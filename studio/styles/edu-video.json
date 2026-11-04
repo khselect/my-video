@@ -1,0 +1,111 @@
+{
+  "id": "edu-video",
+  "name": "모션그래픽 강의 (기본)",
+  "category": "lecture",
+  "kind": "HyperFrames · 나레이션 동기화",
+  "summary": "문서를 진행자 없는 모션그래픽 강의로 만든다. 장면마다 다른 도형(shape)으로 개념을 그리고, 나레이션이 말하는 순간 요소가 등장한다.",
+  "skill_dir": ".claude/skills/edu-video",
+  "engine": "edu-video",
+  "narration": "sync",
+  "fit": [
+    "개념 설명",
+    "기술 강의",
+    "업무 교육"
+  ],
+  "cautions": [],
+  "options": [
+    {
+      "key": "theme",
+      "label": "화면 톤",
+      "type": "select",
+      "default": "dark",
+      "choices": [
+        [
+          "dark",
+          "어두운 남색 + 앰버 (스타일 가이드 기본)"
+        ],
+        [
+          "light",
+          "밝은 종이 배경 + 진한 글자"
+        ]
+      ]
+    },
+    {
+      "key": "accent",
+      "label": "핵심 강조색",
+      "type": "color",
+      "default": "#ffb547",
+      "help": "장면마다 핵심 단어 1개에만 쓰는 색"
+    },
+    {
+      "key": "captions",
+      "label": "자막",
+      "type": "select",
+      "default": "on",
+      "choices": [
+        [
+          "on",
+          "나레이션 자막 표시"
+        ],
+        [
+          "off",
+          "자막 없음"
+        ]
+      ]
+    }
+  ],
+  "plan": {
+    "rows": "scenes",
+    "note": "대본(3단계)의 장면마다 한 줄. 도형·글자·그림을 바꾸면 이 단계의 장면 제작에만 반영되고 대본은 그대로입니다.",
+    "columns": [
+      {
+        "key": "shape",
+        "label": "화면 구성(도형)",
+        "type": "select",
+        "choices": [
+          [
+            "transform",
+            "변환 (A → B)"
+          ],
+          [
+            "cycle",
+            "순환 고리"
+          ],
+          [
+            "checklist-terminal",
+            "체크리스트·터미널"
+          ],
+          [
+            "stack",
+            "쌓기"
+          ],
+          [
+            "axis",
+            "축·대비"
+          ],
+          [
+            "converge",
+            "모이기"
+          ],
+          [
+            "source-figure",
+            "원문 그림"
+          ]
+        ],
+        "default": "scene.shape"
+      },
+      {
+        "key": "text",
+        "label": "화면 글자",
+        "type": "text",
+        "default": "scene.on_screen"
+      },
+      {
+        "key": "visual",
+        "label": "그림 설명",
+        "type": "text",
+        "default": "scene.visual"
+      }
+    ]
+  }
+}

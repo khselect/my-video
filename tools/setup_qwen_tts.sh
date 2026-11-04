@@ -38,7 +38,8 @@ else
   pip install -q torch torchaudio
   pip install -q qwen-tts
 fi
-pip install -q -U "huggingface_hub[cli]"
+# transformers 4.x (pulled in by qwen-tts) refuses huggingface_hub >= 1.0 at import time
+pip install -q "huggingface_hub[cli]>=0.34,<1.0"
 
 CV_MODEL="Qwen/Qwen3-TTS-12Hz-${SIZE}-CustomVoice"
 for M in "$CV_MODEL" "$MODEL"; do

@@ -21,7 +21,9 @@ import subprocess
 import sys
 from pathlib import Path
 
-DEFAULT_MODEL = os.environ.get("QWEN_TTS_MODEL", "Qwen/Qwen3-TTS-12Hz-1.7B-Base")
+_LOCAL_BASE = Path.home() / ".edu-video" / "models" / "Qwen3-TTS-12Hz-1.7B-Base"   # from setup_qwen_tts.sh
+DEFAULT_MODEL = os.environ.get("QWEN_TTS_MODEL") or (
+    str(_LOCAL_BASE) if (_LOCAL_BASE / "config.json").exists() else "Qwen/Qwen3-TTS-12Hz-1.7B-Base")
 VOICES_DIR = Path(os.environ.get("EDU_VOICES_DIR", Path.home() / ".edu-video" / "voices"))
 REF_SR = 24000
 
