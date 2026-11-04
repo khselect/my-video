@@ -21,6 +21,104 @@
       "seconds": 29.57,
       "resolution": "1920x1080",
       "has_audio": true
+    },
+    {
+      "version": "v002",
+      "file": "v002_2026-11-04_635457f-dirty.mp4",
+      "kind": "render",
+      "engine": "hyperframes",
+      "composition": null,
+      "created": "2026-11-04T12:17:22",
+      "render_seconds": 28.1,
+      "source": {
+        "commit": "635457f",
+        "dirty": true,
+        "branch": "claude/my-video-git-pull-49kwdy",
+        "changed": [
+          "lectures/sample-30s/compositions/captions.html",
+          "lectures/sample-30s/compositions/s01.html",
+          "lectures/sample-30s/compositions/s02.html",
+          "lectures/sample-30s/compositions/s03.html",
+          "lectures/sample-30s/compositions/s04.html",
+          "lectures/sample-30s/compositions/s05.html",
+          "lectures/sample-30s/index.html",
+          "lectures/sample-30s/scenes.json",
+          "lectures/sample-30s/source/source.md",
+          "lectures/sample-30s/source/original.md"
+        ]
+      },
+      "command": "npx hyperframes render -o renders/v002_2026-11-04_635457f-dirty.mp4",
+      "note": "",
+      "bytes": 2414444,
+      "sha256": "67c79e0967dc9ea1e4b18fc8b26cd5292cc9bf901429eb92821ba2cb714d3c8c",
+      "seconds": 36.33,
+      "resolution": "1920x1080",
+      "has_audio": true
+    },
+    {
+      "version": "v003",
+      "file": "v003_2026-11-04_635457f-dirty.mp4",
+      "kind": "render",
+      "engine": "hyperframes",
+      "composition": null,
+      "created": "2026-11-04T13:07:53",
+      "render_seconds": 14.8,
+      "source": {
+        "commit": "635457f",
+        "dirty": true,
+        "branch": "claude/my-video-git-pull-49kwdy",
+        "changed": [
+          "lectures/sample-30s/compositions/captions.html",
+          "lectures/sample-30s/compositions/s01.html",
+          "lectures/sample-30s/compositions/s02.html",
+          "lectures/sample-30s/compositions/s03.html",
+          "lectures/sample-30s/compositions/s04.html",
+          "lectures/sample-30s/compositions/s05.html",
+          "lectures/sample-30s/index.html",
+          "lectures/sample-30s/scenes.json",
+          "lectures/sample-30s/source/source.md",
+          "lectures/sample-30s/source/original.md"
+        ]
+      },
+      "command": "npx hyperframes render -o renders/v003_2026-11-04_635457f-dirty.mp4",
+      "note": "장면 skill.md 반영",
+      "bytes": 2414444,
+      "sha256": "67c79e0967dc9ea1e4b18fc8b26cd5292cc9bf901429eb92821ba2cb714d3c8c",
+      "seconds": 36.33,
+      "resolution": "1920x1080",
+      "has_audio": true
+    },
+    {
+      "version": "v004",
+      "file": "v004_2026-11-04_635457f-dirty.mp4",
+      "kind": "paper-cutout",
+      "derived_from": null,
+      "created": "2026-11-04T13:27:15",
+      "source": {
+        "commit": "635457f",
+        "dirty": true,
+        "branch": "claude/my-video-git-pull-49kwdy",
+        "changed": [
+          "lectures/sample-30s/compositions/captions.html",
+          "lectures/sample-30s/compositions/s01.html",
+          "lectures/sample-30s/compositions/s02.html",
+          "lectures/sample-30s/compositions/s03.html",
+          "lectures/sample-30s/compositions/s04.html",
+          "lectures/sample-30s/compositions/s05.html",
+          "lectures/sample-30s/index.html",
+          "lectures/sample-30s/scenes.json",
+          "lectures/sample-30s/source/source.md",
+          "lectures/sample-30s/source/original.md",
+          "lectures/sample-30s/style-paper-cutout/"
+        ]
+      },
+      "original_path": "/Users/sielain/video-tools/my-video/lectures/sample-30s/build/style-paper-cutout-render.mp4",
+      "note": "[종이 콜라주 스토리] 5 장면 탭 개선 반영",
+      "bytes": 25776594,
+      "sha256": "8a81f5a1987e48c0c460ff1ddbaf60fcb9df31e4255484b7402c6673b030cc5d",
+      "seconds": 36.33,
+      "resolution": "1920x1080",
+      "has_audio": true
     }
   ]
 }

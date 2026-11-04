@@ -1,8 +1,8 @@
 {
-  "title": "클로드로 영상 만드는 오픈소스 3개 (30초 샘플)",
-  "one_idea": "편집 프로그램 없이, 도구 3개를 쌓으면 클로드에게 말로 영상을 시킬 수 있다",
-  "audience": "코딩 초보, 영상 편집 경험 없음",
-  "source": "sources/설치가이드.pdf",
+  "title": "작은 점 하나",
+  "one_idea": "모든 큰 그림은 작은 점 하나에서 시작돼요.",
+  "audience": "초등학교 저학년",
+  "source": "lectures/sample-30s/source/source.md",
   "language": "korean",
   "speaker": "sohee",
   "voice": "me",
@@ -15,65 +15,60 @@
     {
       "id": "s01",
       "shape": "transform",
-      "narration": "편집 프로그램 없이, 말로만 강의 영상을 만들 수 있을까요?",
+      "narration": "오늘도 도화지 앞에서 머뭇거리는 아이, 첫걸음은 어떻게 뗄 수 있을까요?",
       "on_screen": [
-        "편집 프로그램 없이",
-        "말로 영상을?"
+        "머뭇거리는 아이",
+        "첫걸음은?"
       ],
-      "visual": "편집 타임라인 막대 3개가 접히며 코드 줄로 바뀐다",
-      "source_ref": "p.1",
-      "instruct": "호기심을 끄는 밝은 톤으로",
-      "pause_after": 1.4
+      "visual": "하얀 도화지 위에서 흔들리던 연필이, 서서히 작은 점 하나로 바뀐다",
+      "source_ref": "빈 도화지",
+      "instruct": "조심스럽고 다정한 톤으로"
     },
     {
       "id": "s02",
-      "shape": "stack",
-      "narration": "엔진은 리모션, 그래픽은 하이퍼프레임즈, 확장은 오픈몽타주가 맡습니다.",
+      "shape": "cycle",
+      "narration": "선생님은 그림을 그리라 하지 않고, 점 하나만 찍어 보라고 지우에게 말했어요.",
       "on_screen": [
-        "Remotion · 엔진",
-        "HyperFrames · 그래픽",
-        "OpenMontage · 확장"
+        "그림 말고,",
+        "점 하나만"
       ],
-      "visual": "세 층이 아래에서부터 떨어져 쌓인다",
-      "source_ref": "p.1",
-      "pause_after": 1.4
+      "visual": "선생님 말풍선 → 연필이 점을 찍는 손 → 작은 점, 세 칸짜리 원이 한 칸씩 그려지며 순환한다",
+      "source_ref": "2장. 점 하나"
     },
     {
       "id": "s03",
-      "shape": "checklist-terminal",
-      "narration": "준비물은 노드 이십이 이상, 에프에프엠펙, 그리고 파이썬입니다.",
+      "shape": "stack",
+      "narration": "지우는 작은 점을 하나씩 더해 가며, 자기만의 멋진 그림을 완성해 갔어요.",
       "on_screen": [
-        "node -v → 22+",
-        "ffmpeg",
-        "python 3.10+"
+        "점이 쌓여,",
+        "그림이 된다"
       ],
-      "visual": "터미널에 명령이 찍히고 ✓가 붙는다",
-      "source_ref": "p.1",
-      "pause_after": 1.4
+      "visual": "작은 점들이 한 층씩 쌓여 올라가며 완성된 그림으로 바뀐다, 점이 늘어날 때마다 카운트업",
+      "source_ref": "아직"
     },
     {
       "id": "s04",
       "shape": "axis",
-      "narration": "리모션은 네 명 이상 회사면 유료, 하이퍼프레임즈는 상업용도 무료예요.",
+      "narration": "못 해라는 말은 문을 닫지만, 아직이라는 말은 다음을 기대하게 만들어요.",
       "on_screen": [
-        "Remotion: 4인 이상 유료",
-        "OpenMontage: AGPL",
-        "HyperFrames: Apache-2.0"
+        "못 해",
+        "아직"
       ],
-      "visual": "조건 있음 ↔ 완전 자유 축 위에 핀이 떨어진다",
-      "source_ref": "p.2-3",
-      "pause_after": 1.4
+      "visual": "한 축 위, 왼쪽엔 닫힌 문 모양의 '못 해', 오른쪽엔 열린 문 모양의 '아직'이 놓인다",
+      "source_ref": "아직",
+      "instruct": "담담하지만 또렷한 톤으로"
     },
     {
       "id": "s05",
       "shape": "converge",
-      "narration": "코드로 만들고, 그래픽을 얹고, 음악까지. 이제 말로 영상을 뽑으세요.",
+      "narration": "모든 큰 그림은 작은 점 하나에서 시작돼요. 우리 아이의 첫 점을 찾아봐요.",
       "on_screen": [
-        "편집 프로그램 없이, 말로 영상을 뽑는다"
+        "작은 점 하나,",
+        "큰 그림의 시작"
       ],
-      "visual": "칩 세 개가 가운데로 모여 결론 한 줄이 된다",
-      "source_ref": "p.3",
-      "pause_after": 2.6
+      "visual": "점, 손을 든 아이, 완성된 그림 조각 세 개가 가운데로 모여 한 문장으로 합쳐진다",
+      "source_ref": "마무리",
+      "instruct": "따뜻하고 희망적인 톤으로"
     }
   ]
 }

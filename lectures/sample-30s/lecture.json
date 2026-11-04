@@ -1,11 +1,11 @@
 {
   "slug": "sample-30s",
-  "title": "클로드로 영상 만드는 오픈소스 3개 (30초 샘플)",
-  "source": "sources/설치가이드.pdf",
+  "title": "작은 점 하나",
+  "source": "대본.md",
   "brief": {
-    "one_idea": "편집 프로그램 없이, 도구 3개를 쌓으면 클로드에게 말로 영상을 시킬 수 있다",
-    "audience": "코딩 초보",
-    "emphasis": "라이선스 차이를 짚는다",
+    "one_idea": "모든 큰 그림은 작은 점 하나에서 시작돼요.",
+    "audience": "초등학교 저학년",
+    "emphasis": " 우리 아이가 첫 한 걸음",
     "target_seconds": "30",
     "speaker": "sohee",
     "voice": "me"
@@ -13,33 +13,35 @@
   "stages": {
     "source": {
       "status": "approved",
-      "approved_at": "2026-11-03T07:35:05",
-      "note": "4쪽 모두 추출, 표 정상"
+      "approved_at": "2026-11-04T11:55:22",
+      "note": ""
     },
     "brief": {
       "status": "approved",
-      "approved_at": "2026-11-03T07:35:05",
+      "approved_at": "2026-11-04T12:00:11",
       "note": ""
     },
     "script": {
       "status": "approved",
-      "approved_at": "2026-11-03T07:35:18",
-      "note": "장면 여백 추가"
+      "approved_at": "2026-11-04T12:04:32",
+      "note": ""
     },
     "narration": {
       "status": "approved",
-      "approved_at": "2026-11-03T07:35:20",
-      "note": "silent 길이 추정 (실제 음성은 PC에서)"
+      "approved_at": "2026-11-04T12:17:00",
+      "note": ""
     },
     "visuals": {
-      "status": "approved",
-      "approved_at": "2026-11-03T07:37:28",
-      "note": "스냅샷 6장 확인, check 통과"
+      "status": "editing",
+      "approved_at": "2026-11-04T13:26:22",
+      "note": "",
+      "stale_since": "2026-11-04T13:29:04"
     },
     "render": {
-      "status": "approved",
+      "status": "stale",
       "approved_at": "2026-11-03T07:39:07",
-      "note": "v001 확인"
+      "note": "v001 확인",
+      "stale_since": "2026-11-04T11:22:18"
     }
   },
   "narration_review": {
@@ -48,5 +50,13 @@
     "s03": "ok",
     "s04": "ok",
     "s05": "ok"
+  },
+  "visual_style": {
+    "id": "edu-video",
+    "options": {
+      "theme": "dark",
+      "accent": "#ffb547",
+      "captions": "on"
+    }
   }
 }
