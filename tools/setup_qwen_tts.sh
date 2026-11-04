@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
 # Install local Qwen3-TTS (voice clone) into ~/.edu-video/qwen-venv and pre-download the model.
 # usage: setup_qwen_tts.sh [1.7B|0.6B]
-#   1.7B  best quality, ~6-8 GB VRAM (NVIDIA) or Apple Silicon with 16 GB+ RAM
+#   1.7B  best quality, ~6-8 GB VRAM (NVIDIA), Apple Silicon 16 GB+, or CPU with 16 GB RAM (slow)
 #   0.6B  ~4-6 GB VRAM, also usable on CPU (slow)
+# Downloads both models narrate.py uses:
+#   <SIZE>-CustomVoice  built-in speakers (narrate.py --backend customvoice, the default)
+#   <SIZE>-Base         voice clone (voice_clone.py, narrate.py --backend clone)
 set -euo pipefail
 SIZE="${1:-1.7B}"
 MODEL="Qwen/Qwen3-TTS-12Hz-${SIZE}-Base"
@@ -25,6 +28,10 @@ if command -v nvidia-smi >/dev/null 2>&1; then
   pip install -q torch torchaudio --index-url https://download.pytorch.org/whl/cu128
   pip install -q qwen-tts
   pip install -q -U flash-attn --no-build-isolation || echo "  [skip] flash-attn failed to build; runs without it (more VRAM)"
+elif [ "$(uname -s)" = "Linux" ]; then
+  echo "==> Linux without NVIDIA GPU: installing CPU build of PyTorch (avoids multi-GB CUDA wheels)"
+  pip install -q torch torchaudio --index-url https://download.pytorch.org/whl/cpu
+  pip install -q qwen-tts
 else
   echo "==> No NVIDIA GPU: installing default PyTorch (Apple MPS / CPU)"
   pip install -q torch torchaudio
@@ -32,13 +39,17 @@ else
 fi
 pip install -q -U "huggingface_hub[cli]"
 
-echo "==> Downloading $MODEL"
-hf download "$MODEL" --local-dir "$HOME_DIR/models/$(basename "$MODEL")"
+CV_MODEL="Qwen/Qwen3-TTS-12Hz-${SIZE}-CustomVoice"
+for M in "$CV_MODEL" "$MODEL"; do
+  echo "==> Downloading $M"
+  hf download "$M" --local-dir "$HOME_DIR/models/$(basename "$M")"
+done
 
 cat <<EOF
 
 Done.
   activate : source $VENV/bin/activate
-  model    : export QWEN_TTS_MODEL=$HOME_DIR/models/$(basename "$MODEL")
+  models   : export QWEN_TTS_CUSTOMVOICE_MODEL=$HOME_DIR/models/$(basename "$CV_MODEL")
+             export QWEN_TTS_MODEL=$HOME_DIR/models/$(basename "$MODEL")
   next     : python .claude/skills/edu-video/scripts/voice_clone.py prep my-recording.m4a
 EOF
