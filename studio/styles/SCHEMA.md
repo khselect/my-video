@@ -58,6 +58,21 @@ Lecture Studio 5단계(장면)에서 고를 수 있는 "영상 생성 스킬" �
 }
 ```
 
+## HyperFrames 기반 스타일 (engine "edu-video" + prompt)
+
+`engine: "edu-video"` 이면서 `prompt` 가 있으면 기본 강의 지시(HyperFrames·나레이션 동기화) 위에 이 스타일의 지시를 덧붙인다
+(예: `ai-motion` — 장면 일러스트 + 모션그래픽). 작업 폴더는 강의 폴더 자체, 생성 그림은 `assets/images/`.
+
+```json
+"paid": [ { "when": {"image_source": "higgsfield"}, "notice": "Higgsfield 이미지 — 장당 1크레딧 × 최대 {opt.max_images}장" } ],
+"mcp_tools": [ { "when": {"image_source": "higgsfield"}, "tools": ["mcp__claude_ai_Higgsfield__balance", "..."] } ],
+"bash": ["curl -sSfL -o *", "{image_python} {tools}/cutout.py *"]
+```
+
+- `paid`: 조건(`when`, 옵션 값 일치)에 맞으면 장면 제작 전에 확인 창으로 보여 주고, 승인한 범위만 Claude 에게 허용한다.
+- `mcp_tools`: 조건에 맞을 때만 `claude -p --allowedTools` 에 넣는 MCP 도구 (claude.ai 커넥터, 예: Higgsfield).
+- `bash`: `npx hyperframes` 외에 추가로 허용할 명령.
+
 ## 치환자
 
 | 치환자 | 값 |
@@ -76,5 +91,5 @@ Lecture Studio 5단계(장면)에서 고를 수 있는 "영상 생성 스킬" �
 ## 규칙
 
 - `render` 가 없으면 장면 제작 단계에서 Claude 가 `{work}/output.mp4` 를 만들어야 하고, 6단계는 그 파일을 버전으로 등록한다.
-- 유료 API(FAL, ElevenLabs 등)는 Studio 에서 호출하지 않는다. 이야기 캐릭터·이미지는 `tools/sticker_local.py`(로컬 FLUX, 무료)로 만든다. 음악은 "없음" 또는 사용자가 가진 음원 파일만.
+- 유료 서비스는 manifest `paid`·`mcp_tools` 로 선언하고 사용자가 확인 창에서 승인한 범위만 쓴다 (Higgsfield 이미지, Fish Audio 나레이션). 스킬 스크립트의 API 키(FAL, ElevenLabs 등)는 Studio 작업에서 지우고 실행한다. 이야기 캐릭터·이미지는 `tools/sticker_local.py`(로컬 FLUX, 무료)로 만든다. 음악은 "없음" 또는 사용자가 가진 음원 파일만.
 - 내용(문구·장면)은 항상 강의의 원문·기획·대본에서 온다. 스킬 예시의 문구를 그대로 쓰지 않는다.

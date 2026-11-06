@@ -48,8 +48,9 @@ def build_prompt(subject: str, character: str = "", style_note: str = "", palett
 
 
 class Studio:
-    def __init__(self, steps: int, size: int, matting: str):
+    def __init__(self, steps: int, size: int, matting: str, width: int = 0, height: int = 0, plain: bool = False):
         self.steps, self.size, self.matting = steps, size, matting
+        self.w, self.h, self.plain = width or size, height or size, plain   # plain: whole scene image, subject = full prompt
         self.flux = self.rembg = None
 
     def model(self):
@@ -80,12 +81,16 @@ class Studio:
 
     def make(self, item: dict, shared: dict, i: int, n: int) -> None:
         out = Path(item["out"])
-        prompt = build_prompt(item["subject"], item.get("character", shared.get("character", "")),
-                              item.get("style_note", shared.get("style_note", "")), item.get("palette", shared.get("palette", PALETTE)))
+        if self.plain:
+            note = item.get("style_note", shared.get("style_note", ""))
+            prompt = item["subject"] + (f" Art direction: {note}." if note else "") + " No text, no letters, no logos."
+        else:
+            prompt = build_prompt(item["subject"], item.get("character", shared.get("character", "")),
+                                  item.get("style_note", shared.get("style_note", "")), item.get("palette", shared.get("palette", PALETTE)))
         seed = int(item.get("seed", shared.get("seed", 7)))
         init = item.get("init")
         strength = float(item.get("strength", 0.3)) if init else None
-        key = hashlib.sha1(json.dumps([prompt, seed, self.size, self.steps, init, strength, self.matting]).encode()).hexdigest()[:12]
+        key = hashlib.sha1(json.dumps([prompt, seed, self.w, self.h, self.steps, init, strength, self.matting]).encode()).hexdigest()[:12]
         meta = out.with_suffix(out.suffix + ".json")
         if out.exists() and meta.exists() and json.loads(meta.read_text()).get("key") == key:
             print(f"sticker {i}/{n} cached  {out}", flush=True)
@@ -96,8 +101,8 @@ class Studio:
             if not Path(init).exists():
                 sys.exit(f"--init image not found: {init} (make the base sticker first)")
         t = time.time()
-        res = self.model().generate_image(seed=seed, prompt=prompt, num_inference_steps=self.steps, width=self.size,
-                                          height=self.size, image_path=init, image_strength=strength)
+        res = self.model().generate_image(seed=seed, prompt=prompt, num_inference_steps=self.steps, width=self.w,
+                                          height=self.h, image_path=init, image_strength=strength)
         raw = res.image.convert("RGB")
         out.parent.mkdir(parents=True, exist_ok=True)
         raw.save(out.with_name(out.stem + ".raw.png"))   # square original: reference for pose variants
@@ -120,6 +125,10 @@ def main() -> None:
     ap.add_argument("--init", help="reference image for a pose variant of the same character")
     ap.add_argument("--strength", type=float, default=0.3, help="with --init: how much of the reference to keep (0.25-0.4)")
     ap.add_argument("--size", type=int, default=1024)
+    ap.add_argument("--width", type=int, default=0, help="with --height: non-square output, e.g. 1344x768 for 16:9")
+    ap.add_argument("--height", type=int, default=0)
+    ap.add_argument("--plain", action="store_true", help="whole scene image: subject is the full prompt, no paper-cut template "
+                    "(use with --matting none)")
     ap.add_argument("--steps", type=int, default=4)
     ap.add_argument("--matting", default="isnet-general-use", help="rembg model, or 'none' to keep the white background")
     a = ap.parse_args()
@@ -137,7 +146,7 @@ def main() -> None:
         items = [{"subject": a.subject, "out": a.out, **({"init": a.init, "strength": a.strength} if a.init else {})}]
     else:
         ap.error("give --subject and --out, or --batch file.json")
-    st = Studio(a.steps, a.size, a.matting)
+    st = Studio(a.steps, a.size, a.matting, a.width, a.height, a.plain)
     for i, it in enumerate(items, 1):
         st.make(it, spec, i, len(items))
 

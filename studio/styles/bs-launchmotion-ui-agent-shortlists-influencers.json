@@ -1,0 +1,289 @@
+{
+  "id": "bs-launchmotion-ui-agent-shortlists-influencers",
+  "name": "에이전트 숏리스트 UI 모션",
+  "category": "promo",
+  "kind": "UI 모션 클립 · 9.4초 고정 템플릿",
+  "summary": "AI 에이전트가 후보를 순위대로 추려 숏리스트를 만들고, 사용자가 승인하면 각 행이 3단계(보냄·열람·회신)로 바뀌는 9.4초 UI 애니메이션. 문구와 테마만 바꾸는 고정 템플릿이다.",
+  "skill_dir": "video-skills/bs-launchmotion-ui-agent-shortlists-influencers",
+  "engine": "skill",
+  "narration": "none",
+  "fit": [
+    "AI 에이전트·자동화 제품 홍보",
+    "추천·매칭·섭외 서비스 소개",
+    "SaaS 대시보드 데모 인트로"
+  ],
+  "cautions": [
+    "장면 구성(헤드라인 → 숏리스트 패널 → 승인 → 3단계 진행 → 완료 토스트)과 9.4초 타이밍이 고정입니다. 메시지가 이 흐름과 맞을 때만 쓰세요.",
+    "제목 글꼴(Smiley Sans)은 한글이 없어 시스템 글꼴로 대체됩니다. 한국어면 'Inter 전체'(기본) 또는 내 글꼴 파일을 권장합니다.",
+    "슬롯마다 글자 수 제한이 있습니다(SKILL.md 3절 표 참고).",
+    "이 장면은 그림 슬롯이 없는 HTML UI라 이미지 생성은 쓰지 않습니다. 유료 API(FAL, ElevenLabs 등)·음악 생성도 Studio 에서 실행하지 않습니다."
+  ],
+  "options": [
+    {
+      "key": "theme",
+      "label": "테마",
+      "type": "select",
+      "default": "blue",
+      "choices": [
+        ["blue", "파랑 (기본)"],
+        ["mono", "흑백"],
+        ["orange", "주황"],
+        ["brand", "브랜드 색 지정"]
+      ]
+    },
+    {
+      "key": "accent",
+      "label": "브랜드 색",
+      "type": "color",
+      "default": "#1F6FEB",
+      "show_if": { "theme": "brand" }
+    },
+    {
+      "key": "font",
+      "label": "제목 글꼴",
+      "type": "select",
+      "default": "inter",
+      "choices": [
+        ["inter", "Inter 전체 (한글은 시스템 글꼴, 기본)"],
+        ["smiley", "Smiley Sans (스킬 기본, 영문·중문)"],
+        ["file", "내 글꼴 파일"]
+      ]
+    },
+    {
+      "key": "font_file",
+      "label": "글꼴 파일 경로",
+      "type": "text",
+      "default": "",
+      "show_if": { "font": "file" },
+      "help": ".woff2 / .ttf / .otf 절대 경로"
+    },
+    {
+      "key": "resolution",
+      "label": "해상도",
+      "type": "select",
+      "default": "1080p",
+      "choices": [
+        ["1080p", "1080p (기본)"],
+        ["4k", "4K"]
+      ]
+    }
+  ],
+  "prompt": "{skill}/SKILL.md 를 따른다. 현재 디렉터리 {work} 가 작업 폴더다.\n- 이 장면은 'AI 에이전트가 후보를 추려 숏리스트를 만들고, 승인 뒤 각 행이 3단계로 진행되는' 고정 UI 애니메이션이다. 문구는 항상 이 강의의 기획({lecture}/lecture.json 의 brief), 원문({lecture}/source/source.md), 대본({lecture}/scenes.json)에서 가져온다. 스킬 예시(Kite marketing agent, 크리에이터 핸들 등)는 그대로 쓰지 않는다.\n- 두 헤드라인(headline-1, headline-2)은 강의 핵심 메시지를 전/후 두 문장으로 나눈다. SKILL.md 3절 표의 글자 수 제한을 지킨다.\n- 숏리스트 6행(c1~c6)은 강의의 핵심 항목·예시·단계 6개를 대표하는 짧은 이름(handle, 16자 이하)과 그 항목을 뒷받침하는 수치(followers, 5자 이하)로 채운다. 수치를 지어내지 말고 강의에 실제로 나오는 숫자·순위·빈도만 쓴다. 쓸 숫자가 없으면 짧은 상태어로 대체한다.\n- 상태 칩 3개(status-labels)는 강의 흐름에 맞는 3단계 이름으로 바꾼다(예: 도입/적용/정리). 각 10자 이하, '/' 로 구분한다.\n- agent-label·panel-title·count-shortlist·reach-label·approve·panel-title-2·replied-label·toast 는 강의 맥락에 맞는 배지·제목·요약·행동 유도·마무리 문구로 바꾼다.\n- 장면 구성표에 사용자가 직접 적은 문구(★)가 있으면 그 값을 그대로 쓴다. 비어 있으면 위 규칙대로 Claude가 채운다.\n- 유료 API(FAL, ElevenLabs 등)·음악 생성·이미지 생성은 쓰지 않는다 (이 장면은 그림 슬롯이 없는 HTML UI다).\n- 위 슬롯 값을 content.json 에 쓰고 node {skill}/scripts/create.mjs --out launch-scene --data content.json 를 실행한다. 테마: {opt.theme} 가 \"brand\" 면 --accent \"{opt.accent}\", 아니면 --theme {opt.theme}. 글꼴: {opt.font} 가 \"file\" 이면 --font \"{opt.font_file}\", 아니면 --font {opt.font}.\n- npx hyperframes snapshot launch-scene 등으로 시작·중간·마지막 장면을 보고, 잘리거나 줄바꿈된 문구를 줄여 다시 만든다. 장면 구성과 9.4초 타이밍은 바꾸지 않는다.\n- npx hyperframes render 는 실행하지 않는다 (렌더는 Studio 6단계가 한다).",
+  "bash": [
+    "node {skill}/scripts/create.mjs *",
+    "npx hyperframes snapshot *",
+    "npx --yes hyperframes snapshot *",
+    "npx hyperframes check *",
+    "npx --yes hyperframes check *"
+  ],
+  "qa": [
+    "npx",
+    "--yes",
+    "hyperframes",
+    "snapshot",
+    "{work}/launch-scene",
+    "--review",
+    "-o",
+    "{work}/qa"
+  ],
+  "qa_images": "qa/*",
+  "render": [
+    "npx",
+    "--yes",
+    "hyperframes",
+    "render",
+    "{work}/launch-scene",
+    "--output",
+    "{out}",
+    "--fps",
+    "30",
+    "--quality",
+    "high",
+    "--resolution",
+    "{opt.resolution}"
+  ],
+  "plan": {
+    "rows": "fixed",
+    "no_note": true,
+    "note": "9.4초 고정 UI 애니메이션(헤드라인 → 숏리스트 6행 → 승인 → 보냄·열람·회신 전환 → 완료 토스트)의 문구 슬롯입니다. 비워 두면 Claude가 강의 내용으로 글자 수에 맞춰 씁니다. 직접 적으면 그대로 들어갑니다.",
+    "columns": [
+      {
+        "key": "text",
+        "label": "문구",
+        "type": "text",
+        "default": "",
+        "placeholder": "(강의 내용으로 자동)"
+      }
+    ],
+    "fixed_rows": [
+      {
+        "id": "headline-1",
+        "label": "첫 헤드라인",
+        "time": "0.1–4.5초",
+        "limit": 28,
+        "hint": "스킬 예시: Finds the right creators. · 최대 28자 · 마지막 단어는 그라데이션 강조"
+      },
+      {
+        "id": "agent-label",
+        "label": "에이전트 배지",
+        "time": "1.95–9.4초",
+        "limit": 26,
+        "hint": "스킬 예시: Kite marketing agent · 최대 26자"
+      },
+      {
+        "id": "panel-title",
+        "label": "숏리스트 패널 제목",
+        "time": "1.6–4.6초",
+        "limit": 34,
+        "hint": "스킬 예시: Shortlist for the spring launch · 최대 34자"
+      },
+      {
+        "id": "count-shortlist",
+        "label": "후보 수",
+        "time": "1.6–4.9초",
+        "limit": 14,
+        "hint": "스킬 예시: 6 creators · 최대 14자"
+      },
+      {
+        "id": "c1-handle",
+        "label": "항목 1 이름",
+        "time": "2.0–9.4초",
+        "limit": 16,
+        "hint": "스킬 예시: @mayaonthego · 최대 16자 · PARAMS.creators[0]"
+      },
+      {
+        "id": "c1-followers",
+        "label": "항목 1 수치",
+        "time": "2.0–9.4초",
+        "limit": 5,
+        "hint": "스킬 예시: 212K · 최대 5자"
+      },
+      {
+        "id": "c2-handle",
+        "label": "항목 2 이름",
+        "time": "2.0–9.4초",
+        "limit": 16,
+        "hint": "스킬 예시: @dan.runs · 최대 16자 · PARAMS.creators[1]"
+      },
+      {
+        "id": "c2-followers",
+        "label": "항목 2 수치",
+        "time": "2.0–9.4초",
+        "limit": 5,
+        "hint": "스킬 예시: 148K · 최대 5자"
+      },
+      {
+        "id": "c3-handle",
+        "label": "항목 3 이름",
+        "time": "2.0–9.4초",
+        "limit": 16,
+        "hint": "스킬 예시: @lenakitchen · 최대 16자 · PARAMS.creators[2]"
+      },
+      {
+        "id": "c3-followers",
+        "label": "항목 3 수치",
+        "time": "2.0–9.4초",
+        "limit": 5,
+        "hint": "스킬 예시: 305K · 최대 5자"
+      },
+      {
+        "id": "c4-handle",
+        "label": "항목 4 이름",
+        "time": "2.0–9.4초",
+        "limit": 16,
+        "hint": "스킬 예시: @tomsetups · 최대 16자 · PARAMS.creators[3]"
+      },
+      {
+        "id": "c4-followers",
+        "label": "항목 4 수치",
+        "time": "2.0–9.4초",
+        "limit": 5,
+        "hint": "스킬 예시: 96K · 최대 5자"
+      },
+      {
+        "id": "c5-handle",
+        "label": "항목 5 이름",
+        "time": "2.0–9.4초",
+        "limit": 16,
+        "hint": "스킬 예시: @aria.notes · 최대 16자 · PARAMS.creators[4]"
+      },
+      {
+        "id": "c5-followers",
+        "label": "항목 5 수치",
+        "time": "2.0–9.4초",
+        "limit": 5,
+        "hint": "스킬 예시: 178K · 최대 5자"
+      },
+      {
+        "id": "c6-handle",
+        "label": "항목 6 이름",
+        "time": "2.0–9.4초",
+        "limit": 16,
+        "hint": "스킬 예시: @jonbuilds · 최대 16자 · PARAMS.creators[5]"
+      },
+      {
+        "id": "c6-followers",
+        "label": "항목 6 수치",
+        "time": "2.0–9.4초",
+        "limit": 5,
+        "hint": "스킬 예시: 64K · 최대 5자"
+      },
+      {
+        "id": "followers-unit",
+        "label": "수치 단위",
+        "time": "2.0–9.4초",
+        "limit": 10,
+        "hint": "스킬 예시: followers · 최대 10자"
+      },
+      {
+        "id": "reach-label",
+        "label": "도달 수 설명",
+        "time": "2.3–4.6초",
+        "limit": 18,
+        "hint": "스킬 예시: Combined reach · 최대 18자 · 값은 PARAMS.reach 숫자가 자동 카운트업"
+      },
+      {
+        "id": "approve",
+        "label": "승인 버튼 문구",
+        "time": "1.6–4.6초",
+        "limit": 20,
+        "hint": "스킬 예시: Approve and send · 최대 20자"
+      },
+      {
+        "id": "headline-2",
+        "label": "두 번째 헤드라인",
+        "time": "4.75–9.4초",
+        "limit": 28,
+        "hint": "스킬 예시: Then does the outreach. · 최대 28자"
+      },
+      {
+        "id": "panel-title-2",
+        "label": "진행 패널 제목",
+        "time": "4.85–9.4초",
+        "limit": 34,
+        "hint": "스킬 예시: Outreach in progress · 최대 34자"
+      },
+      {
+        "id": "replied-label",
+        "label": "회신 수 설명",
+        "time": "4.9–9.4초",
+        "limit": 16,
+        "hint": "스킬 예시: of 6 replied · 최대 16자"
+      },
+      {
+        "id": "status-labels",
+        "label": "상태 칩 문구",
+        "time": "4.95–9.4초",
+        "limit": 10,
+        "hint": "스킬 예시: Sent / Opened / Replied · 각 라벨 최대 10자, '/' 로 구분"
+      },
+      {
+        "id": "toast",
+        "label": "완료 토스트",
+        "time": "8.1–9.4초",
+        "limit": 26,
+        "hint": "스킬 예시: 4 creators said yes · 최대 26자"
+      }
+    ]
+  }
+}

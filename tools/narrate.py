@@ -12,6 +12,8 @@ Backends
   customvoice  Qwen3-TTS CustomVoice model, built-in speaker (default; "speaker" in the JSON, e.g. sohee)
   clone        Qwen3-TTS Base model + a voice profile from tools/voice_clone.py enroll (~/.edu-video/voices/<name>.pt)
   silent       silence sized from text length (Korean ~7.5 chars/s); for layout work without a GPU
+  fish         Fish Audio voice (e.g. my cloned voice). The audio is fetched through the Fish Audio MCP by
+               tools/fish_audio.py narrate into <out>/fish/<id>-<hash>.mp3; this backend only converts it.
 
 Cache: a scene is skipped when its wav exists and its text/voice settings hash is unchanged.
 Editing a scene's text regenerates only that scene. --force [ids] regenerates on demand.
@@ -83,15 +85,17 @@ class Backend:
         self.language = a.language or script.get("language", "korean")
         self.speaker = a.speaker or script.get("speaker", "sohee")
         self.voice = a.voice or script.get("voice", "me")
+        self.fish_voice = a.fish_voice or ""
+        self.current = None   # (scene id, hash) being synthesized — the fish backend reads its prefetched file
         self.tts = None
         self.prompt = None
 
     def settings_key(self) -> str:
-        who = {"customvoice": self.speaker, "clone": self.voice, "silent": "-"}[self.kind]
+        who = {"customvoice": self.speaker, "clone": self.voice, "silent": "-", "fish": self.fish_voice}[self.kind]
         return f"{self.kind}|{who}|{self.language}"
 
     def load(self) -> None:
-        if self.kind == "silent" or self.tts is not None:
+        if self.kind in ("silent", "fish") or self.tts is not None:
             return
         import torch
         from qwen_tts import Qwen3TTSModel
@@ -113,6 +117,17 @@ class Backend:
         if self.kind == "silent":
             secs = max(1.0, len(text.replace(" ", "")) / 7.5)
             return array("h", bytes(int(secs * SR) * 2)), SR
+        if self.kind == "fish":
+            sid, h = self.current
+            src = fish_file(self.a.out, sid, h)
+            if not src.exists():
+                sys.exit(f"{src} not found: run tools/fish_audio.py narrate first (it fetches the audio via Fish Audio)")
+            import subprocess
+            raw = subprocess.run(["ffmpeg", "-v", "error", "-i", str(src), "-ac", "1", "-ar", str(SR), "-f", "s16le", "-"],
+                                 capture_output=True, check=True).stdout
+            pcm = array("h")
+            pcm.frombytes(raw[: len(raw) // 2 * 2])
+            return pcm, SR
         self.load()
         if self.kind == "customvoice":
             wavs, sr = self.tts.generate_custom_voice(text=text, speaker=self.speaker, language=self.language,
@@ -129,6 +144,10 @@ def scene_text(sc: dict) -> str:
     return (sc.get("narration") or sc.get("text") or "").strip()
 
 
+def fish_file(out: Path, sid: str, h: str) -> Path:
+    return out / "fish" / f"{sid}-{h}.mp3"
+
+
 def scene_hash(sc: dict, key: str) -> str:
     raw = json.dumps([scene_text(sc), sc.get("instruct", ""), key], ensure_ascii=False)
     return hashlib.sha1(raw.encode("utf-8")).hexdigest()[:12]
@@ -138,10 +157,11 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("scenes", type=Path)
     ap.add_argument("--out", type=Path, default=Path("build/audio"))
-    ap.add_argument("--backend", choices=["customvoice", "clone", "silent"],
+    ap.add_argument("--backend", choices=["customvoice", "clone", "silent", "fish"],
                     default=os.environ.get("NARRATE_BACKEND", "customvoice"))
     ap.add_argument("--speaker", help="CustomVoice speaker (default: JSON 'speaker' or sohee)")
     ap.add_argument("--voice", help="clone profile name (default: JSON 'voice' or me)")
+    ap.add_argument("--fish-voice", help="Fish Audio voice id (backend fish)")
     ap.add_argument("--language", help="default: JSON 'language' or korean")
     ap.add_argument("--model", help="override model id or local folder")
     ap.add_argument("--device", default="auto", help="auto | cuda:0 | mps | cpu")
@@ -176,6 +196,7 @@ def main() -> None:
         forced = a.force is not None and (len(a.force) == 0 or sc["id"] in a.force)
         if text and (forced or not wav_path.exists() or old_hash.get(sc["id"]) != h):
             t0 = time.time()
+            be.current = (sc["id"], h)
             samples, sr = be.synth(text, sc.get("instruct"))
             if sr != SR:
                 import numpy as np
@@ -216,7 +237,7 @@ def main() -> None:
         "title": script.get("title", ""),
         "source_script": str(a.scenes),
         "backend": be.kind, "speaker": be.speaker if be.kind == "customvoice" else None,
-        "voice": be.voice if be.kind == "clone" else None, "language": be.language,
+        "voice": be.voice if be.kind == "clone" else (be.fish_voice if be.kind == "fish" else None), "language": be.language,
         "sample_rate": SR, "lead": a.lead, "total_duration": round(start, 3),
         "created": time.strftime("%Y-%m-%dT%H:%M:%S"),
         "scenes": entries,

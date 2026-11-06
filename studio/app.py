@@ -22,6 +22,7 @@ import json
 import mimetypes
 import os
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -200,10 +201,16 @@ def job_progress(job: dict, text: str) -> dict:
     # parse complete lines only: a half-written "159/237" would read as "159/23"
     text = text[: max(text.rfind("\n"), text.rfind("\r")) + 1]
     try:
-        if kind == "narrate":
+        fish = _last(r"fish todo (\d+) scenes", text) if kind == "narrate" else None
+        if fish and int(fish.group(1)) and not re.search(r"^\s+(?:made|skip) ", text, re.M):
+            n = int(fish.group(1))
+            got = len(re.findall(r"^\s+fetched ", text, re.M))
+            pct, label = 5 + 80 * min(got, n) / n, f"Fish Audio 음성 {got}/{n} 받음 (Claude · MCP)"
+        elif kind == "narrate":
             total = len(_scene_ids(job["slug"], with_text=True)) or 1
             done = len(re.findall(r"^\s+(?:made|skip) ", text, re.M))
-            pct = 5 + 95 * min(done, total) / total
+            lo = 85 if "fish todo" in text else 5   # fish: 5-85% was fetching the audio through the MCP
+            pct = lo + (100 - lo) * min(done, total) / total
             label = f"장면 {done}/{total} 음성 생성" if done or "loading" not in text else "TTS 모델 불러오는 중"
             if not done and "loading" not in text:
                 pct, label = 0, "준비 중"
@@ -244,12 +251,22 @@ def job_progress(job: dict, text: str) -> dict:
             label = "참고 스타일 분석 중 (Claude)"
         elif kind == "claude-style":
             label = "스킬 분석 중 (Claude)"
+        elif kind == "fish-clone":
+            label = "녹음 정리 완료 — Claude 가 Fish Audio 에 올리고 화자를 만드는 중" if "sample " in text else "녹음 정리 중"
+        elif kind == "qwen-enroll":
+            label = "Qwen 모델로 목소리 프로필 만드는 중" if "loading" in text else "녹음 정리 중"
         elif kind == "claude-visuals":
             d = lecture_dir(job["slug"]) / "compositions"
             ids = _scene_ids(job["slug"])
             done = sum(1 for i in ids if (d / f"{i}.html").exists() and (d / f"{i}.html").stat().st_mtime >= job["started"])
+            imgs = lecture_dir(job["slug"]) / "assets" / "images"
+            n_img = sum(1 for p in imgs.iterdir() if p.suffix.lower() in (".png", ".jpg", ".jpeg", ".webp")
+                        and p.stat().st_mtime >= job["started"]) if imgs.exists() else 0
             if ids:
                 pct, label = min(95, 90 * done / len(ids)), f"장면 {done}/{len(ids)} 작성됨 (Claude)"
+                if n_img:
+                    pct = max(pct, 5)
+                    label += f" · 그림 {n_img}장 받음"
         elif kind == "claude-script":
             f = lecture_dir(job["slug"]) / "scenes.json"
             if f.exists() and f.stat().st_mtime >= job["started"]:
@@ -316,9 +333,13 @@ def prompt_visuals(slug: str, feedback: dict | None = None) -> str:
     return base
 
 
+def claude_exe(cfg: dict) -> str:
+    return shutil.which(cfg.get("claude_cmd", "claude")) or cfg.get("claude_cmd", "claude")
+
+
 def claude_cmd(cfg: dict, prompt: str, bash: list[str] | None = None, add_dirs: list[Path] | None = None,
                tools: str = "Read,Write,Edit,Glob,Grep") -> list[str]:
-    exe = shutil.which(cfg.get("claude_cmd", "claude")) or cfg.get("claude_cmd", "claude")
+    exe = claude_exe(cfg)
     cmd = [exe, "-p", prompt, "--permission-mode", "acceptEdits"]
     if add_dirs:
         cmd += ["--add-dir", *map(str, add_dirs)]
@@ -458,7 +479,34 @@ def prompt_style(slug: str, st: dict, style: dict, opts: dict, feedback: dict | 
 
 def edu_prompt(slug: str, st: dict, style: dict, opts: dict, feedback: dict | None = None) -> str:
     plan = plan_text(plan_view(slug, st, style, opts))
-    return prompt_visuals(slug, feedback) + edu_option_lines(style, opts) + (f"\n\n{plan}" if plan else "") + ref_hint(slug)
+    extra = ""
+    if style.get("prompt"):   # a HyperFrames style built on edu-video (e.g. ai-motion): its own instructions on top
+        v = style_vars(slug, st, style, opts)
+        b = st.get("brief", {})
+        extra = (f"\n\n기획: 핵심 아이디어 \"{b.get('one_idea', '')}\", 대상 \"{b.get('audience', '')}\"\n"
+                 f"고른 옵션:\n{option_lines(style, opts)}\n\n{fill(style['prompt'], v)}")
+        paid = paid_notice(style, opts)
+        extra += ("\n\n사용자가 Studio 에서 승인한 유료 사용 범위 (이 범위만): " + " / ".join(paid)) if paid else \
+                 "\n\n유료 서비스(Higgsfield 등)는 호출하지 않는다."
+    return prompt_visuals(slug, feedback) + edu_option_lines(style, opts) + extra + (f"\n\n{plan}" if plan else "") + ref_hint(slug)
+
+
+def _when(cond: dict, opts: dict) -> bool:
+    return all(str(opts.get(k, "")) == str(v) for k, v in (cond or {}).items())
+
+
+def paid_notice(style: dict, opts: dict) -> list[str]:
+    """What this build may spend (manifest "paid"), shown in a confirm dialog before the build."""
+    v = {f"opt.{k}": val for k, val in opts.items()}
+    return [fill(p["notice"], v) for p in style.get("paid", []) if _when(p.get("when"), opts)]
+
+
+def style_mcp_tools(style: dict, opts: dict) -> list[str]:
+    out = []
+    for g in style.get("mcp_tools", []):
+        if _when(g.get("when"), opts):
+            out += [t for t in g.get("tools", []) if t.startswith("mcp__") and t not in out]
+    return out
 
 
 def edu_option_lines(style: dict, opts: dict) -> str:
@@ -573,6 +621,65 @@ def plan_diff(plan: dict, built: dict) -> dict:
 # ---- reference style: a link + screenshots → style-ref/brief.md (own words; never the reference's frames or characters)
 
 REF_IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".webp"}
+
+
+def style_assets(d: Path, style: dict) -> list[str]:
+    """Generated characters / scene images shown in stage 5 (skill styles: style-<id>/assets, edu styles: assets/images)."""
+    a = d / "assets" / "images" if style["engine"] == "edu-video" else d / f"style-{style['id']}" / "assets"
+    if not a.exists():
+        return []
+    return sorted(p.relative_to(d).as_posix() for p in a.iterdir()
+                  if p.suffix.lower() in REF_IMAGE_EXTS and not p.name.endswith(".raw.png"))
+
+
+# ---- my voice: Fish Audio clone (MCP via tools/fish_audio.py) and local Qwen profile (tools/voice_clone.py)
+VOICES_DIR = Path(os.environ.get("EDU_VOICES_DIR", Path.home() / ".edu-video" / "voices"))
+VOICE_EXTS = {".wav", ".m4a", ".mp3", ".aac", ".flac", ".ogg", ".webm", ".mp4", ".mov"}
+
+
+def fish_state() -> dict:
+    return read_json(VOICES_DIR / "fish.json", {}) or {}
+
+
+def voice_view() -> dict:
+    samples = VOICES_DIR / "samples"
+    return {"fish": fish_state(), "qwen": sorted(p.stem for p in VOICES_DIR.glob("*.pt")),
+            "samples": sorted((p.name for p in samples.iterdir() if p.suffix.lower() in VOICE_EXTS), reverse=True)
+            if samples.exists() else []}
+
+
+def voice_sample(name: str) -> Path:
+    f = VOICES_DIR / "samples" / Path(name or "").name
+    if not name or not f.is_file():
+        raise ValueError("녹음 파일을 먼저 올리세요")
+    return f
+
+
+def voice_action(action: str, body: dict) -> dict:
+    cfg = load_config()
+    py = sys.executable
+    if action == "fish_clone":
+        if not body.get("consent"):
+            raise ValueError("본인 목소리(또는 서면 동의)임을 확인해야 복제할 수 있습니다")
+        cmd = [py, str(TOOLS / "fish_audio.py"), "--claude", claude_exe(cfg), "clone", str(voice_sample(body.get("sample"))),
+               "--title", str(body.get("title") or "내 목소리")[:40], "--consent"]
+        return {"job": run_job(STUDIO_SLUG, "fish-clone", cmd, ROOT)}
+    if action == "fish_verify":
+        cmd = [py, str(TOOLS / "fish_audio.py"), "--claude", claude_exe(cfg), "verify", str(voice_sample(body.get("sample")))]
+        return {"job": run_job(STUDIO_SLUG, "fish-clone", cmd, ROOT)}
+    if action == "qwen_enroll":
+        if not body.get("consent"):
+            raise ValueError("본인 목소리(또는 서면 동의)임을 확인해야 합니다")
+        name = str(body.get("name") or "me")
+        if not re.match(r"^[A-Za-z0-9_-]{1,40}$", name):
+            raise ValueError("프로필 이름은 영문·숫자·-_ 만")
+        src, ref, qpy = voice_sample(body.get("sample")), VOICES_DIR / f"{name}.wav", cfg["qwen_python"]
+        vc = str(TOOLS / "voice_clone.py")
+        text = str(body.get("text") or "").strip()
+        enroll = [qpy, vc, "enroll", str(ref), "--name", name, *(["--text", text] if text else ["--xvector-only"])]
+        script = " ".join(map(shlex.quote, [qpy, vc, "prep", str(src), "-o", str(ref)])) + " && " + " ".join(map(shlex.quote, enroll))
+        return {"job": run_job(STUDIO_SLUG, "qwen-enroll", ["/bin/sh", "-c", script], ROOT)}
+    raise ValueError(f"unknown voice action {action}")
 
 
 def ref_dir(slug: str) -> Path:
@@ -730,9 +837,9 @@ def lecture_view(slug: str) -> dict:
         "style": {"id": style["id"], "options": opts},
         "plan": plan_view(slug, st, style, opts),
         "ref": ref_view(slug),
-        "style_assets": [] if style["engine"] == "edu-video" else sorted(
-            p.relative_to(d).as_posix() for p in (d / f"style-{style['id']}" / "assets").glob("*.png")
-            if not p.name.endswith(".raw.png")) if (d / f"style-{style['id']}" / "assets").exists() else [],
+        "style_assets": style_assets(d, style),
+        "paid": paid_notice(style, opts),
+        "voice": voice_view(),
         "prompts": {"script": prompt_script(slug, st), "visuals": visuals_prompt},
         "running": running[0] if running else None,
     }
@@ -793,9 +900,17 @@ def do_action(slug: str, action: str, body: dict) -> dict:
     if action == "narrate":
         b = st.get("brief", {})
         backend = body.get("backend") or cfg["narrate_backend"]
-        cmd = [cfg["qwen_python"] if backend != "silent" else py, str(TOOLS / "narrate.py"), str(d / "scenes.json"),
-               "--out", str(d / "build" / "audio"), "--backend", backend,
-               "--speaker", b.get("speaker") or cfg["speaker"], "--voice", b.get("voice") or cfg["voice"]]
+        if backend == "fish":
+            if not fish_state().get("voice_id"):
+                raise ValueError("Fish Audio 화자가 없습니다 — 아래 '내 목소리 화자'에서 먼저 만드세요")
+            if not body.get("paid_ok"):
+                raise ValueError("Fish Audio 크레딧 사용 확인이 필요합니다")
+            cmd = [py, str(TOOLS / "fish_audio.py"), "--claude", claude_exe(cfg), "narrate", str(d / "scenes.json"),
+                   "--out", str(d / "build" / "audio")]
+        else:
+            cmd = [cfg["qwen_python"] if backend != "silent" else py, str(TOOLS / "narrate.py"), str(d / "scenes.json"),
+                   "--out", str(d / "build" / "audio"), "--backend", backend,
+                   "--speaker", b.get("speaker") or cfg["speaker"], "--voice", b.get("voice") or cfg["voice"]]
         if body.get("force") is not None:
             cmd += ["--force", *body["force"]]
         st["stages"].setdefault("narration", {})
@@ -905,8 +1020,16 @@ def do_action(slug: str, action: str, body: dict) -> dict:
         mark_changed(st, "visuals")
         save_state(slug, st)
         if edu:
-            return {"job": run_job(slug, "claude-visuals", claude_cmd(cfg, edu_prompt(slug, st, style, opts, fb)), ROOT,
-                                   after=remember_plan)}
+            v = style_vars(slug, st, style, opts)
+            mcp = style_mcp_tools(style, opts)
+            if paid_notice(style, opts) and not body.get("paid_ok"):
+                raise ValueError("유료 사용 확인이 필요합니다 — 화면의 확인 창에서 승인하세요")
+            if style.get("prompt"):
+                (d / "assets" / "images").mkdir(parents=True, exist_ok=True)
+            cmd = claude_cmd(cfg, edu_prompt(slug, st, style, opts, fb),
+                             bash=["npx hyperframes:*", "npx --yes hyperframes:*", *fill(style.get("bash", []), v)],
+                             tools=",".join(["Read", "Write", "Edit", "Glob", "Grep", *(["ToolSearch", *mcp] if mcp else [])]))
+            return {"job": run_job(slug, "claude-visuals", cmd, ROOT, after=remember_plan)}
         v = style_vars(slug, st, style, opts)
         cmd = claude_cmd(cfg, prompt_style(slug, st, style, opts, fb), bash=fill(style.get("bash", []), v),
                          add_dirs=[Path(v["skill"]), d])
@@ -1109,6 +1232,19 @@ class Handler(BaseHTTPRequestHandler):
         def route():
             if parts == ["api", "lectures"]:
                 return self.send_json(new_lecture(self.body()))
+            if parts == ["api", "voice", "upload"]:
+                n = int(self.headers.get("Content-Length") or 0)
+                if not n or n > MAX_UPLOAD:
+                    raise ValueError("녹음 파일이 비었거나 너무 큽니다")
+                name = Path(unquote(self.headers.get("X-Filename") or "")).name
+                if Path(name).suffix.lower() not in VOICE_EXTS:
+                    raise ValueError("녹음은 wav·m4a·mp3·aac·flac·ogg·webm 파일만 됩니다")
+                (VOICES_DIR / "samples").mkdir(parents=True, exist_ok=True)
+                saved = f"{time.strftime('%Y%m%d-%H%M%S')}-{name}"
+                (VOICES_DIR / "samples" / saved).write_bytes(self.rfile.read(n))
+                return self.send_json({"name": saved})
+            if len(parts) == 3 and parts[:2] == ["api", "voice"]:
+                return self.send_json(voice_action(parts[2], self.body()))
             if parts == ["api", "config"]:
                 cfg = load_config()
                 cfg.update({k: v for k, v in self.body().items() if k in DEFAULT_CONFIG})
