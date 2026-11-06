@@ -13,23 +13,24 @@
   "stages": {
     "source": {
       "status": "approved",
-      "approved_at": "2026-11-04T11:55:22",
+      "approved_at": "2026-11-06T14:00:54",
       "note": ""
     },
     "brief": {
       "status": "approved",
-      "approved_at": "2026-11-04T12:00:11",
+      "approved_at": "2026-11-06T14:00:57",
       "note": ""
     },
     "script": {
       "status": "approved",
-      "approved_at": "2026-11-04T12:04:32",
+      "approved_at": "2026-11-06T14:04:04",
       "note": ""
     },
     "narration": {
-      "status": "approved",
+      "status": "stale",
       "approved_at": "2026-11-04T12:17:00",
-      "note": ""
+      "note": "",
+      "stale_since": "2026-11-06T14:03:49"
     },
     "visuals": {
       "status": "editing",

@@ -1,6 +1,7 @@
-# WORKFLOW — 문서로 진행자 없는 애니메이션 강의 만들기
+# WORKFLOW — 문서로 진행자 없는 애니메이션 영상 만들기
 
-PDF·HTML·Markdown 문서 한 건을 **내레이션 + 모션그래픽 강의 영상**으로 만드는 전체 절차입니다.
+PDF·HTML·Markdown 문서 한 건을 **내레이션 + 모션그래픽 영상**(강의·스토리 애니메이션·홍보 클립)으로 만드는 전체 절차입니다.
+작업 이력은 [docs/DEVLOG.md](docs/DEVLOG.md).
 원칙은 두 가지입니다.
 
 1. **나레이션을 먼저 만들고, 영상을 그 길이에 맞춘다.** 장면 길이는 `build/audio/manifest.json`이 정한다.
@@ -30,12 +31,21 @@ PDF·HTML·Markdown 문서 한 건을 **내레이션 + 모션그래픽 강의 �
 | 배경음악 | `SUNO_API_KEY` | 유료 | 무료 대안: Pixabay Music |
 | 스크립트 작성 | (없음) | — | Claude Code가 직접 씀. Anthropic API 키 불필요 |
 
+**claude.ai 커넥터(MCP)** — 키 대신 claude.ai 계정에 연결해 두면 Studio 의 `claude -p` 작업이 그대로 씁니다 (`claude mcp list` 로 연결 확인).
+
+| 용도 | 커넥터 | 비용 (2026-11-06) | Studio 에서 |
+|---|---|---|---|
+| 장면 일러스트 (이미지·영상) | Higgsfield | 이미지 1크레딧/장, 5초 영상 약 35 | 5단계 'AI 일러스트 모션' |
+| 내 목소리 복제·나레이션 | Fish Audio | 텍스트 1바이트 ≈ 1크레딧 (한글 1자 ≈ 3) | 4단계 '내 목소리 화자', 백엔드 `fish` |
+
+유료 사용은 항상 확인 창을 거치고, 잔액을 먼저 확인합니다. 스킬 스크립트가 읽는 FAL·ElevenLabs 키는 Studio 작업에서 지우고 실행합니다.
+
 ---
 
-## 2. 폴더 구조와 기기 간 동기화 (Windows PC ↔ MacBook)
+## 2. 폴더 구조와 기기 간 동기화 (맥미니 ↔ 맥북 ↔ Windows PC)
 
 ```
-video-tools/                    ← 저장소 아님. 세 폴더를 나란히 둔다
+video-tools/                    ← 저장소 아님. 아래 폴더를 나란히 둔다
 ├─ my-video/                    ← git 저장소 khselect/my-video (이 파일)
 │  ├─ WORKFLOW.md               ← 이 문서
 │  ├─ scenes.example.json       ← 장면 스크립트 형식 예시
@@ -46,12 +56,20 @@ video-tools/                    ← 저장소 아님. 세 폴더를 나란히 �
 │  │  ├─ index.html, compositions/  ← 모션그래픽 소스 (커밋)
 │  │  ├─ build/audio/           ← 나레이션 wav + manifest.json (재생성 가능, 제외)
 │  │  └─ renders/               ← vNNN 영상 (제외) + manifest.json (커밋)
-│  ├─ tools/                    ← narrate.py, voice_clone.py, render_version.py, new_lecture.py, extract_source.py
+│  ├─ tools/                    ← narrate.py, voice_clone.py, fish_audio.py, render_version.py, render_style.py,
+│  │                               new_lecture.py, extract_source.py, sticker_local.py, cutout.py, setup_*.sh
 │  ├─ studio/                   ← Lecture Studio (HITL 앱)
+│  │  └─ styles/                ← 영상 스타일 manifest (SCHEMA.md) — 커밋
+│  ├─ video-skills/             ← 가져온 영상 스킬 원본 (제3자, 커밋 안 함, 기기마다 다시 가져오기)
+│  ├─ docs/DEVLOG.md            ← 기능별 작업 기록
 │  ├─ src/                      ← Remotion 템플릿 (여러 강의에 재사용)
 │  └─ .claude/skills/           ← edu-video 스킬 + Remotion 공식 스킬
 ├─ OpenMontage/                 ← 원본 clone (커밋 안 함, 필요하면 다시 clone)
-└─ qwen-tts-env/                ← Python 가상환경 (커밋 안 함, 기기마다 새로 설치)
+├─ qwen-tts-env/                ← Qwen3-TTS 가상환경 (커밋 안 함, 기기마다 새로 설치)
+├─ image-env/                   ← 로컬 이미지 생성 가상환경 mflux + rembg (커밋 안 함, Apple Silicon)
+└─ voice-samples/               ← 화자 미리듣기 샘플 (커밋 안 함)
+
+~/.edu-video/                   ← 기기별: models/(Qwen·FLUX 모델), voices/(녹음·클론 프로필·fish.json)
 ```
 
 **커밋하는 것**: 내가 만든 소스(대본, 장면 HTML, 설정, 도구)와 버전 기록.
@@ -64,9 +82,11 @@ cd ~/Developments/video-tools
 git clone https://github.com/khselect/my-video.git
 cd my-video && npm install
 python3 tools/new_lecture.py <강의이름> --restore-assets      # 강의마다: 폰트·GSAP 다시 받기
-bash tools/setup_qwen_tts.sh 1.7B                               # Apple Silicon 16GB+ 권장, 아니면 0.6B
+QWEN_VENV=../qwen-tts-env bash tools/setup_qwen_tts.sh 1.7B     # Apple Silicon 16GB+ 권장, 아니면 0.6B
+IMAGE_VENV=../image-env bash tools/setup_image_gen.sh            # 로컬 그림 생성 (선택, 모델 9GB)
 ```
-그리고 Studio의 "이 PC 설정"에서 qwen-tts Python 경로를 맥 경로로 저장합니다 (`~/.edu-video/qwen-venv/bin/python`).
+그리고 Studio의 "이 PC 설정"에 저장합니다: qwen-tts Python (`…/qwen-tts-env/bin/python`), 이미지 생성 Python (`…/image-env/bin/python`).
+가져온 스킬은 5단계 "+ 스타일 추가"로 다시 가져옵니다 (`video-skills/` 는 git 제외). claude.ai 커넥터(Higgsfield·Fish Audio)는 계정에 붙어 있어 따로 설정이 필요 없습니다.
 목소리 클론 프로필(`~/.edu-video/voices/`)은 git으로 옮기지 말고, 맥에서 다시 `enroll` 하거나 개인 드라이브로 직접 복사합니다.
 
 ### 매일 작업 흐름
@@ -127,7 +147,7 @@ Claude Code가 `source.md`와 brief로 `scenes.json`을 씁니다 (Studio의 "Cl
 * **입력**: 장면 스크립트 JSON (`scenes.example.json` 형식)
 * **출력**: `build/audio/`에 장면별 `<id>.wav`, 이어 붙인 `narration.wav`, 장면별 `start`/`duration`이 담긴 `manifest.json`. **영상 길이는 이 manifest에 맞춰 싱크를 잡습니다.**
 * **캐시**: 이미 만든 장면은 건너뜁니다. 문장을 고친 장면은 자동으로 다시 만들고, 그대로인데 다시 듣고 싶은 장면은 `--force s02`로 지정합니다. `--force`만 쓰면 전부 다시 만듭니다.
-* **백엔드**: `customvoice`(기본, 내장 화자 `sohee` 등) · `clone`(내 목소리, 8장) · `silent`(모델 없이 길이만 — GPU 없는 기기에서 화면 작업용)
+* **백엔드**: `customvoice`(기본, 내장 화자 — 기본 `uncle_fu` 남성, 한국어 원어민은 `sohee` 여성뿐) · `clone`(내 목소리, 로컬 Qwen, 8장) · `fish`(내 목소리, Fish Audio 유료, 8장) · `silent`(모델 없이 길이만 — GPU 없는 기기에서 화면 작업용)
 * **속도 참고**: 이전 버전 테스트에서 `sohee` 화자로 2개 장면(14.2초 분량)에 장면당 약 50초 걸렸습니다(Windows PC GPU).
 
 Windows (PowerShell):
@@ -151,7 +171,19 @@ macOS:
 
 ### 단계 5. 장면 (visuals)
 
-Claude Code가 `scenes.json`(무엇을)과 `manifest.json`(언제)으로 `compositions/<id>.html`을 만들고, 루트 `index.html`에 `narration.wav`를 넣습니다.
+Studio 5단계는 세 카드로 진행합니다.
+
+1. **영상 형태와 스타일** — 강의 동영상 / 스토리 애니메이션 / 홍보·짧은 클립 중 스타일 하나. 새 스킬은 "+ 스타일 추가"로 가져와 "Claude로 옵션 분석".
+   | 스타일 | 형태 | 그림 |
+   |---|---|---|
+   | 모션그래픽 강의 (기본) `edu-video` | 강의 | 도형·타이포 |
+   | AI 일러스트 모션 `ai-motion` | 스토리 | Higgsfield(유료) 또는 로컬 FLUX 일러스트 + 밀기·패닝·패럴랙스 |
+   | 종이 콜라주 스토리 `paper-cutout` | 스토리 | 로컬 FLUX 종이 스티커(주인공 캐스팅) |
+   | 캐릭터 크루·잉크 먼지 등 | 홍보 | 스킬 고정 안무·템플릿 |
+2. **옵션** + **참고 스타일**(링크 + 스크린샷 → "스타일 메모 만들기", 스크린샷 필수).
+3. **장면 구성표** — 스타일 기본 구성이 장면마다 채워져 있고, 고친 칸(★)만 그대로 반영. "이 구성으로 장면 제작" / "바뀐 행만 반영". 유료 그림이면 확인 창이 먼저 뜹니다. 만든 그림은 "캐릭터·이미지" 갤러리에서 확인.
+
+기본 스타일(edu-video)에서 Claude Code가 `scenes.json`(무엇을)과 `manifest.json`(언제)으로 `compositions/<id>.html`을 만들고, 루트 `index.html`에 `narration.wav`를 넣습니다.
 ```bash
 cd lectures/oss-video-tools
 npx hyperframes check            # 규칙 위반 0개까지
@@ -210,14 +242,17 @@ python studio/app.py          # Windows: python, macOS: python3
 ```
 브라우저에서 http://127.0.0.1:8765 를 엽니다 (이 컴퓨터에서만 접속됨).
 
-- 왼쪽에서 강의를 만들거나 고르면, 아직 승인되지 않은 첫 단계가 열립니다.
+- 왼쪽에서 **프로젝트**를 만들거나 고르면, 아직 승인되지 않은 첫 단계가 열립니다 (처음 열 때는 마지막에 본 프로젝트). ✕ 는 프로젝트를 휴지통으로 옮깁니다(되살리기 가능).
+- 1단계 원문은 파일 선택·끌어놓기로 올립니다 (PDF·HTML·MD·TXT).
 - 각 단계 화면 아래 **"이 단계 승인 →"** 을 눌러야 다음 단계로 넘어갑니다. 앞 단계가 승인되지 않았으면 거절됩니다.
 - 대본·장면 단계의 **"Claude로 … "** 버튼은 `claude -p`(Claude Code 헤드리스)를 실행합니다. Claude Code가 설치·로그인되어 있어야 합니다. 직접 하고 싶으면 **"프롬프트 복사"** 후 Claude Code에 붙여넣으세요.
 - 나레이션 단계는 장면별 플레이어와 **좋음/다시** 판단이 있고, '다시'만 골라 재생성합니다. 모두 '좋음'이어야 승인됩니다.
-- 긴 작업은 오른쪽 아래 로그 창에 진행 상황이 보이고, 로그는 `lectures/<강의>/build/logs/`에 남습니다.
+- 긴 작업은 팝업에 진행 막대(%·경과·남은 시간)로 보이고, 로그는 `lectures/<프로젝트>/build/logs/`에 남습니다.
+- 4단계 **내 목소리 화자**: 녹음 한 번으로 Fish Audio 화자(유료 합성)와 로컬 Qwen 프로필(무료)을 만듭니다 (8장).
 - **이 PC 설정**: qwen-tts Python 경로, 기본 백엔드·화자는 기기마다 다르므로 `studio/config.local.json`(git 제외)에 저장됩니다.
   - Windows: `C:\Developments\qwen-tts-env\Scripts\python.exe`
-  - macOS: `~/.edu-video/qwen-venv/bin/python` (절대경로로)
+  - macOS: `/Users/<사용자>/video-tools/qwen-tts-env/bin/python` (절대경로로)
+  - 이미지 생성 Python: `/Users/<사용자>/video-tools/image-env/bin/python`
 
 ---
 
@@ -232,7 +267,7 @@ python studio/app.py          # Windows: python, macOS: python3
 
 ---
 
-## 8. 내 목소리로 (Qwen3-TTS 보이스 클론)
+## 8. 내 목소리로 (Qwen3-TTS 로컬 · Fish Audio)
 
 자세한 녹음 요령은 `.claude/skills/edu-video/references/my-voice.md`.
 ```bash
@@ -241,6 +276,20 @@ python tools/voice_clone.py enroll ~/.edu-video/voices/me.wav --name me --text "
 python tools/narrate.py lectures/x/scenes.json --out lectures/x/build/audio --backend clone --voice me
 ```
 목소리 파일과 프로필은 `~/.edu-video/voices/`에만 두고 커밋하지 않습니다.
+
+### Studio 에서 (권장) — Qwen 로컬 + Fish Audio
+
+4단계 아래 **내 목소리 화자** 카드:
+1. 녹음 파일 올리기 (조용한 곳, 평소 말투, 15~60초) → "이 녹음은 내 목소리이며 복제에 동의합니다" 체크
+2. **로컬 Qwen 프로필 만들기 (무료)** — 읽은 문장을 넣으면 더 정확. 나레이션 백엔드 `clone`
+3. **Fish Audio 화자 만들기** — 녹음을 Fish 에 올려 비공개 화자로 복제(업로드 원본은 7일 뒤 삭제). 본인 확인이 필요하면 화면의 문장을 녹음해 보냄. 나레이션 백엔드 `fish`
+
+명령어로:
+```bash
+python tools/fish_audio.py clone 녹음.m4a --title "내 목소리" --consent      # → ~/.edu-video/voices/fish.json
+python tools/fish_audio.py narrate lectures/x/scenes.json --out lectures/x/build/audio   # 바뀐 장면만, 잔액 먼저 확인
+```
+Fish 나레이션은 장면당 500바이트(한글 약 160자) 이하여야 합니다.
 
 ---
 
@@ -254,11 +303,19 @@ python tools/narrate.py lectures/x/scenes.json --out lectures/x/build/audio --ba
 | 렌더가 장면마다 45초씩 멈춤 | 장면 호스트 id = composition id = timeline 키가 같은지 확인 |
 | 나레이션이 장면보다 김 | 문장을 줄이거나 narrate를 다시 돌려 manifest 길이로 장면을 다시 맞춤 |
 | `claude` 명령 없음 | Claude Code 설치 후 로그인, 또는 "프롬프트 복사"로 직접 실행 |
+| transformers / qwen_tts 임포트 오류 | `huggingface_hub>=0.34,<1.0` 로 고정 (setup 스크립트가 처리) |
+| "FLUX model not found" | `bash tools/setup_image_gen.sh` 후 이 PC 설정에 이미지 생성 Python 입력 |
+| 스토리 장면이 대본과 무관한 소품만 씀 | 옵션 '캐릭터·이미지'를 로컬 생성으로, '등장인물' 입력 |
+| Higgsfield·Fish 도구를 못 찾음 | `claude mcp list` 에서 claude.ai 커넥터 Connected 확인 (claude.ai 설정에서 연결) |
+| Fish 나레이션 "크레딧 부족" | fish.audio 잔액 확인, 또는 백엔드 `clone`(로컬 무료)으로 |
+| 참고 스타일 메모가 엉뚱함 | 링크만으로는 JS 페이지를 못 읽음 → 스크린샷 2~3장 추가 |
+| `git push` 가 멈춤 (Claude Code) | 샌드박스에서 키체인 자격증명 조회가 막힘 → 터미널에서 직접 push |
 
 ---
 
-## 10. 아직 정하지 않은 것
+## 10. 남은 일
 
-- **참고 영상 스타일**: 참고하려던 YouTube 영상과 skillry 페이지를 아직 보지 못했습니다. 지금 스타일 가이드는 데모 기준(남색 바탕, 앰버·청록·코랄 강조, Pretendard)입니다. 영상의 특징(색, 폰트, 전환, 자막 방식)을 정하면 `.claude/skills/edu-video/references/style-guide.md`에 반영합니다.
-- **발음 확인**: 한국어 발음은 `build/audio/s01.wav`를 직접 들어보고, 어색하면 다른 화자나 Gemini/ElevenLabs로 바꿉니다.
-- **다음 단계**: PDF 한 건으로 30초 샘플을 1~7단계 끝까지 만들어 보는 것이 가장 빠릅니다.
+- **실제 제작 검증**: Studio 에서 종이 콜라주(로컬 스티커), AI 일러스트 모션(Higgsfield — 잔액 10크레딧이면 최대 4장 권장), Fish 화자 복제·나레이션을 각각 1회 끝까지.
+- **참고 영상 스타일**: 5단계 '참고 스타일'에 스크린샷을 넣어 메모를 만들고, 마음에 들면 기본 스타일 가이드(`.claude/skills/edu-video/references/style-guide.md`)에도 반영.
+- **발음 확인**: 남성 내장 화자는 한국어 억양이 섞임 → 내 목소리(clone/fish) 또는 `sohee`.
+- **브랜치**: 작업 브랜치 `claude/my-video-git-pull-49kwdy` 를 `main` 에 병합할지 결정.
