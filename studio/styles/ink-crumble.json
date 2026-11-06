@@ -1,0 +1,277 @@
+{
+  "id": "ink-crumble",
+  "name": "잉크 먼지 모션 클립",
+  "category": "promo",
+  "kind": "짧은 모션 클립 · 7초 고정 템플릿",
+  "summary": "스캔이 카드의 개인정보를 찾아내고, 문장과 카드가 잉크 먼지로 부서진 뒤 강조된 마무리 문장이 타이핑된다. 문구 슬롯만 바꾸는 7초 HyperFrames 템플릿.",
+  "skill_dir": "video-skills/bs-launchmotion-prompt-find-crumbles-ink",
+  "engine": "skill",
+  "narration": "none",
+  "fit": [
+    "인트로·아웃트로",
+    "'찾아서 지운다' 류 메시지",
+    "개인정보·보안 홍보"
+  ],
+  "cautions": [
+    "장면 구성(스캔 → 4개 항목 발견 → 부서짐 → 결과 숫자)과 타이밍이 고정입니다. 메시지가 이 흐름과 맞을 때만 쓰세요.",
+    "제목 글꼴(Smiley Sans)은 한글이 없을 수 있어 시스템 글꼴로 대체됩니다. 한국어면 'Inter 전체' 또는 내 글꼴 파일을 권장.",
+    "슬롯마다 글자 수 제한이 있습니다(references/defaults.json)."
+  ],
+  "options": [
+    {
+      "key": "theme",
+      "label": "테마",
+      "type": "select",
+      "default": "blue",
+      "choices": [
+        [
+          "blue",
+          "파랑 (기본)"
+        ],
+        [
+          "mono",
+          "흑백"
+        ],
+        [
+          "orange",
+          "주황"
+        ],
+        [
+          "brand",
+          "브랜드 색 지정"
+        ]
+      ]
+    },
+    {
+      "key": "accent",
+      "label": "브랜드 색",
+      "type": "color",
+      "default": "#1F6FEB",
+      "show_if": {
+        "theme": "brand"
+      }
+    },
+    {
+      "key": "font",
+      "label": "제목 글꼴",
+      "type": "select",
+      "default": "inter",
+      "choices": [
+        [
+          "inter",
+          "Inter 전체 (한글은 시스템 글꼴)"
+        ],
+        [
+          "smiley",
+          "Smiley Sans (스킬 기본, 영문·중문)"
+        ],
+        [
+          "file",
+          "내 글꼴 파일"
+        ]
+      ]
+    },
+    {
+      "key": "font_file",
+      "label": "글꼴 파일 경로",
+      "type": "text",
+      "default": "",
+      "show_if": {
+        "font": "file"
+      },
+      "help": ".woff2 / .ttf / .otf 절대 경로"
+    },
+    {
+      "key": "resolution",
+      "label": "해상도",
+      "type": "select",
+      "default": "1080p",
+      "choices": [
+        [
+          "1080p",
+          "1080p (기본)"
+        ],
+        [
+          "4k",
+          "4K"
+        ]
+      ]
+    },
+    {
+      "key": "music_file",
+      "label": "배경 음악 파일 (선택)",
+      "type": "text",
+      "default": "",
+      "help": "렌더 뒤 영상 길이에 맞춰 합칩니다"
+    }
+  ],
+  "prompt": "{skill}/SKILL.md 를 따른다. 현재 디렉터리 {work} 가 작업 폴더다.\n- 1절 '사용자 자료'는 이 강의다: 기획 {lecture}/lecture.json 의 brief, 원문 {lecture}/source/source.md, 대본 {lecture}/scenes.json. 웹사이트 조사는 하지 않는다. 없는 숫자·고객·인용은 만들지 않는다.\n- {skill}/references/defaults.json 의 모든 슬롯을 이 강의의 핵심 메시지로 다시 쓴다. 각 슬롯의 글자 수 제한을 지킨다. 장면 구성표에 사용자가 적은 문구(★)는 그대로 쓴다.\n- 슬롯 값을 content.json 에 쓰고 node {skill}/scripts/create.mjs --out launch-scene --data content.json 로 만든다. 테마: theme 가 \"brand\" 면 --accent \"{opt.accent}\", 아니면 --theme {opt.theme}. 글꼴: font 가 \"file\" 이면 --font \"{opt.font_file}\", 아니면 --font {opt.font}.\n- npx hyperframes snapshot launch-scene 등으로 시작·중간·마지막 장면을 보고, 잘리거나 줄바꿈된 문구를 줄여 다시 만든다. 타이밍은 바꾸지 않는다.\n- npx hyperframes render 는 실행하지 않는다 (렌더는 Studio 6단계가 한다).",
+  "bash": [
+    "node {skill}/scripts/create.mjs *",
+    "npx hyperframes snapshot *",
+    "npx --yes hyperframes snapshot *",
+    "npx hyperframes check *",
+    "npx --yes hyperframes check *"
+  ],
+  "qa": [
+    "npx",
+    "--yes",
+    "hyperframes",
+    "snapshot",
+    "{work}/launch-scene",
+    "--review",
+    "-o",
+    "{work}/qa"
+  ],
+  "qa_images": "qa/*",
+  "render": [
+    "npx",
+    "--yes",
+    "hyperframes",
+    "render",
+    "{work}/launch-scene",
+    "--output",
+    "{out}",
+    "--fps",
+    "30",
+    "--quality",
+    "high",
+    "--resolution",
+    "{opt.resolution}"
+  ],
+  "plan": {
+    "rows": "fixed",
+    "no_note": true,
+    "note": "7초 고정 장면의 문구 슬롯입니다. 비워 두면 Claude가 강의 기획·원문으로 글자 수에 맞춰 씁니다. 직접 적으면 그대로 들어갑니다.",
+    "columns": [
+      {
+        "key": "text",
+        "label": "문구",
+        "type": "text",
+        "default": "",
+        "placeholder": "(강의 내용으로 자동)"
+      }
+    ],
+    "fixed_rows": [
+      {
+        "id": "intro",
+        "label": "첫 문장",
+        "time": "0–1.5초",
+        "limit": 32,
+        "hint": "스킬 예시: Your details are everywhere. · 최대 32자 · last word wrapped in span.soft"
+      },
+      {
+        "id": "initials",
+        "label": "카드 이니셜",
+        "time": "카드",
+        "limit": 2,
+        "hint": "스킬 예시: AM · 최대 2자"
+      },
+      {
+        "id": "person",
+        "label": "카드 이름",
+        "time": "카드",
+        "limit": 20,
+        "hint": "스킬 예시: Alex Morgan · 최대 20자"
+      },
+      {
+        "id": "fact-1-label",
+        "label": "항목 1 이름",
+        "time": "카드",
+        "limit": 14,
+        "hint": "스킬 예시: Home address · 최대 14자"
+      },
+      {
+        "id": "fact-1",
+        "label": "항목 1 내용",
+        "time": "카드",
+        "limit": 24,
+        "hint": "스킬 예시: 1482 Willow Lane, Austin · 최대 24자"
+      },
+      {
+        "id": "fact-2-label",
+        "label": "항목 2 이름",
+        "time": "카드",
+        "limit": 14,
+        "hint": "스킬 예시: Phone · 최대 14자"
+      },
+      {
+        "id": "fact-2",
+        "label": "항목 2 내용",
+        "time": "카드",
+        "limit": 24,
+        "hint": "스킬 예시: (512) 555-0142 · 최대 24자"
+      },
+      {
+        "id": "fact-3-label",
+        "label": "항목 3 이름",
+        "time": "카드",
+        "limit": 14,
+        "hint": "스킬 예시: Email · 최대 14자"
+      },
+      {
+        "id": "fact-3",
+        "label": "항목 3 내용",
+        "time": "카드",
+        "limit": 24,
+        "hint": "스킬 예시: alex.morgan@mail.com · 최대 24자"
+      },
+      {
+        "id": "fact-4-label",
+        "label": "항목 4 이름",
+        "time": "카드",
+        "limit": 14,
+        "hint": "스킬 예시: Relatives · 최대 14자"
+      },
+      {
+        "id": "fact-4",
+        "label": "항목 4 내용",
+        "time": "카드",
+        "limit": 24,
+        "hint": "스킬 예시: Jamie and Rose Morgan · 최대 24자"
+      },
+      {
+        "id": "found",
+        "label": "'발견' 표시 (4번 반복)",
+        "time": "카드",
+        "limit": 8,
+        "hint": "스킬 예시: Found · 최대 8자 · repeated on all four facts"
+      },
+      {
+        "id": "find",
+        "label": "찾는다 문장",
+        "time": "중간",
+        "limit": 14,
+        "hint": "스킬 예시: We find it. · 최대 14자"
+      },
+      {
+        "id": "erase",
+        "label": "지운다 문장",
+        "time": "중간",
+        "limit": 14,
+        "hint": "스킬 예시: And erase it. · 최대 14자 · line is left-aligned at x 500; keep length close to default"
+      },
+      {
+        "id": "done-prefix",
+        "label": "결과 앞말",
+        "time": "끝",
+        "limit": 16,
+        "hint": "스킬 예시: Removed from · 최대 16자"
+      },
+      {
+        "id": "removed",
+        "label": "결과 숫자 (카운트업)",
+        "time": "끝",
+        "limit": 4,
+        "hint": "스킬 예시: 214 · 최대 4자 · PARAMS.removed, counted up"
+      },
+      {
+        "id": "done-unit",
+        "label": "결과 단위",
+        "time": "끝",
+        "limit": 10,
+        "hint": "스킬 예시: sites · 최대 10자"
+      }
+    ]
+  }
+}

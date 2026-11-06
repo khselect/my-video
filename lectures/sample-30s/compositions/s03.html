@@ -1,46 +1,56 @@
 <template>
   <style>
-    @font-face { font-family: "Pretendard"; font-weight: 400; src: url("assets/fonts/Pretendard-Regular.woff2") format("woff2"); }
     @font-face { font-family: "Pretendard"; font-weight: 700; src: url("assets/fonts/Pretendard-Bold.woff2") format("woff2"); }
     @font-face { font-family: "Pretendard"; font-weight: 900; src: url("assets/fonts/Pretendard-Black.woff2") format("woff2"); }
     #root { position: absolute; inset: 0; font-family: "Pretendard"; color: #f4f1ea; }
-    #s03-title { position: absolute; left: 200px; top: 110px; font-size: 76px; font-weight: 900; opacity: 0; }
-    #s03-term { position: absolute; left: 200px; top: 270px; width: 1000px; height: 470px; border-radius: 24px; background: #070a16; border: 2px solid #26315e; opacity: 0; }
-    #s03-bar { height: 56px; border-bottom: 2px solid #26315e; }
-    .s03-dot { position: absolute; top: 20px; width: 16px; height: 16px; border-radius: 50%; }
-    .s03-line { position: absolute; left: 48px; font-size: 40px; font-weight: 700; opacity: 0; }
-    .s03-line span { color: #8a93b8; font-weight: 400; }
-    .s03-ok { position: absolute; left: 660px; font-size: 40px; font-weight: 700; color: #4fd1c5; opacity: 0; }
-    #s03-note { position: absolute; left: 1300px; top: 380px; width: 440px; font-size: 44px; font-weight: 700; line-height: 1.35; opacity: 0; }
-    #s03-note em { font-style: normal; color: #ffb547; font-weight: 900; font-size: 128px; display: block; line-height: 1; }
+    #s03-title { position: absolute; left: 200px; top: 150px; font-size: 76px; font-weight: 900; opacity: 0; }
+    #s03-title-em { font-style: normal; color: #ffb547; opacity: 0; display: block; }
+    .s03-chip { position: absolute; left: 260px; width: 150px; height: 150px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 44px; font-weight: 900; color: #0b1020; opacity: 0; }
+    #s03-chip1 { top: 780px; background: #ffb547; }
+    #s03-chip2 { top: 620px; background: #4fd1c5; }
+    #s03-chip3 { top: 460px; background: #ff6b6b; }
+    #s03-counter { position: absolute; left: 420px; top: 360px; font-size: 140px; font-weight: 900; color: #ffb547; opacity: 0; }
+    #s03-counter-label { position: absolute; left: 420px; top: 540px; font-size: 32px; font-weight: 700; color: #8a93b8; opacity: 0; }
+    #s03-frame { position: absolute; left: 1080px; top: 300px; width: 560px; height: 480px; border-radius: 24px; background: #121a36; border: 2px solid #26315e; opacity: 0; }
+    #s03-frame svg { position: absolute; inset: 0; }
   </style>
   <div id="root" data-composition-id="s03" data-width="1920" data-height="1080">
-    <div id="s03-title">시작 전 준비물</div>
-    <div id="s03-term">
-      <div id="s03-bar"></div>
-      <div class="s03-dot" style="left: 24px; background: #ff6b6b"></div>
-      <div class="s03-dot" style="left: 52px; background: #ffb547"></div>
-      <div class="s03-dot" style="left: 80px; background: #4fd1c5"></div>
-      <div id="s03-a1" class="s03-line" style="top: 110px"><span>$</span> node -v</div>
-      <div id="s03-b1" class="s03-ok" style="top: 110px">v22 ✓</div>
-      <div id="s03-a2" class="s03-line" style="top: 230px"><span>$</span> ffmpeg -version</div>
-      <div id="s03-b2" class="s03-ok" style="top: 230px">✓</div>
-      <div id="s03-a3" class="s03-line" style="top: 350px"><span>$</span> python --version</div>
-      <div id="s03-b3" class="s03-ok" style="top: 350px">3.10+ ✓</div>
+    <div id="s03-title">점이 쌓여,<br /><em id="s03-title-em">그림이 된다</em></div>
+    <div id="s03-chip1" class="s03-chip">점</div>
+    <div id="s03-chip2" class="s03-chip">점</div>
+    <div id="s03-chip3" class="s03-chip">점</div>
+    <div id="s03-counter">0</div>
+    <div id="s03-counter-label">개의 점</div>
+    <div id="s03-frame">
+      <svg viewBox="0 0 560 480">
+        <circle cx="280" cy="240" r="46" fill="#4fd1c5" />
+        <circle cx="280" cy="140" r="30" fill="#ffb547" />
+        <circle cx="368" cy="192" r="30" fill="#ff6b6b" />
+        <circle cx="368" cy="288" r="30" fill="#ffb547" />
+        <circle cx="280" cy="340" r="30" fill="#ff6b6b" />
+        <circle cx="192" cy="288" r="30" fill="#ffb547" />
+        <circle cx="192" cy="192" r="30" fill="#ff6b6b" />
+      </svg>
     </div>
-    <div id="s03-note"><em>22+</em>HyperFrames는<br />Node.js 22 이상</div>
   </div>
   <script>
     const tl = gsap.timeline({ paused: true });
-    tl.fromTo("#s03-title", { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.45, ease: "power3.out" }, 0.1);
-    tl.fromTo("#s03-term", { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 0.45, ease: "power3.out" }, 0.25);
-    // 노드 ~0.9s, 에프에프엠펙 ~2.4s, 파이썬 ~3.6s
-    [0.8, 2.2, 3.4].forEach((at, i) => {
-      tl.fromTo("#s03-a" + (i + 1), { opacity: 0, x: -12 }, { opacity: 1, x: 0, duration: 0.25, ease: "power2.out" }, at);
-      tl.fromTo("#s03-b" + (i + 1), { opacity: 0, scale: 0.8 }, { opacity: 1, scale: 1, duration: 0.3, ease: "back.out(2.5)" }, at + 0.35);
+    tl.fromTo("#s03-title", { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.45, ease: "power3.out" }, 0.3);
+    tl.fromTo("#s03-counter", { opacity: 0 }, { opacity: 1, duration: 0.3 }, 0.3);
+    tl.fromTo("#s03-counter-label", { opacity: 0 }, { opacity: 1, duration: 0.3 }, 0.3);
+    // "하나씩 더해 가며" — three dots drop within the first clause, 0.3s to 3.71s
+    const counter = { v: 0 };
+    [0.5, 1.7, 2.9].forEach((at, i) => {
+      tl.fromTo("#s03-chip" + (i + 1), { opacity: 0, y: -80 }, { opacity: 1, y: 0, duration: 0.45, ease: "bounce.out" }, at);
+      tl.to(counter, {
+        v: i + 1, duration: 0.3, ease: "power2.out",
+        onUpdate: () => { document.querySelector("#s03-counter").textContent = Math.round(counter.v); },
+      }, at + 0.1);
     });
-    tl.fromTo("#s03-note", { opacity: 0, x: 30 }, { opacity: 1, x: 0, duration: 0.45, ease: "power3.out" }, 1.3);
-    tl.to("#root", { opacity: 0, duration: 0.3, ease: "power2.in" }, 5.2);
+    // "자기만의 멋진 그림을 완성해 갔어요" — the dots resolve into a finished picture, 3.71s
+    tl.fromTo("#s03-frame", { opacity: 0, scale: 0.85 }, { opacity: 1, scale: 1, duration: 0.5, ease: "back.out(1.6)" }, 3.71);
+    tl.fromTo("#s03-title-em", { opacity: 0 }, { opacity: 1, duration: 0.4, ease: "power3.out" }, 3.71);
+    tl.to("#root", { opacity: 0, duration: 0.3, ease: "power2.in" }, 7.09);
     window.__timelines["s03"] = tl;
   </script>
 </template>

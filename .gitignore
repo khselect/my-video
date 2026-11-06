@@ -41,3 +41,16 @@ voices/
 sources/*.mp4
 sources/*.mov
 sources/*.wav
+
+# --- imported video-style skills (third-party, per machine; manifests live in studio/styles/) ---
+video-skills/
+lectures/*/style-*/node_modules/
+lectures/*/style-*/film/
+lectures/*/style-*/qa/
+lectures/*/style-*/*.mp4
+lectures/*/style-*/**/*.mp4
+# reference screenshots are third-party (e.g. TED: CC BY-NC-ND) — keep only the written style memo (brief.md)
+lectures/*/style-ref/*.png
+lectures/*/style-ref/*.jpg
+lectures/*/style-ref/*.jpeg
+lectures/*/style-ref/*.webp

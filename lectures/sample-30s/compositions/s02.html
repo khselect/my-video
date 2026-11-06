@@ -4,40 +4,42 @@
     @font-face { font-family: "Pretendard"; font-weight: 900; src: url("assets/fonts/Pretendard-Black.woff2") format("woff2"); }
     #root { position: absolute; inset: 0; font-family: "Pretendard"; color: #f4f1ea; }
     #s02-title { position: absolute; left: 200px; top: 110px; font-size: 76px; font-weight: 900; opacity: 0; }
-    .s02-layer { position: absolute; left: 200px; width: 1120px; height: 160px; border-radius: 26px; padding: 28px 44px; color: #0b1020; opacity: 0; }
-    #s02-l1 { top: 660px; background: #ffb547; }
-    #s02-l2 { top: 480px; background: #4fd1c5; }
-    #s02-l3 { top: 300px; background: #ff6b6b; }
-    .s02-role { font-size: 30px; font-weight: 700; opacity: 0.75; }
-    .s02-name { font-size: 58px; font-weight: 900; }
-    .s02-desc { position: absolute; left: 540px; top: 60px; font-size: 36px; font-weight: 700; }
-    .s02-star { position: absolute; left: 1380px; font-size: 50px; font-weight: 900; opacity: 0; }
-    .s02-star small { display: block; font-size: 28px; color: #8a93b8; font-weight: 700; }
-    #s02-s1 { top: 690px; } #s02-s2 { top: 510px; } #s02-s3 { top: 330px; }
+    #s02-title-em { font-style: normal; color: #ffb547; opacity: 0; display: block; }
+    #s02-svg { position: absolute; left: 560px; top: 225px; width: 800px; height: 760px; }
+    #s02-core { position: absolute; left: 860px; top: 515px; width: 200px; height: 200px; border-radius: 50%; background: #ffb547; color: #0b1020; display: flex; align-items: center; justify-content: center; font-size: 48px; font-weight: 900; opacity: 0; }
+    .s02-node { position: absolute; width: 300px; text-align: center; padding: 26px 0; border-radius: 22px; background: #121a36; border: 2px solid #26315e; opacity: 0; }
+    .s02-node h3 { font-size: 38px; font-weight: 900; }
+    .s02-node p { font-size: 28px; color: #8a93b8; font-weight: 700; margin-top: 6px; }
+    #s02-n1 { left: 810px; top: 255px; }
+    #s02-n2 { left: 1190px; top: 580px; }
+    #s02-n3 { left: 430px; top: 580px; }
   </style>
   <div id="root" data-composition-id="s02" data-width="1920" data-height="1080">
-    <div id="s02-title">도구 3개, 층으로 쌓는다</div>
-    <div id="s02-l1" class="s02-layer"><div class="s02-role">① 엔진</div><div class="s02-name">Remotion</div><div class="s02-desc">영상을 코드로</div></div>
-    <div id="s02-l2" class="s02-layer"><div class="s02-role">② 그래픽</div><div class="s02-name">HyperFrames</div><div class="s02-desc">HTML 그대로 MP4로</div></div>
-    <div id="s02-l3" class="s02-layer"><div class="s02-role">③ 확장</div><div class="s02-name">OpenMontage</div><div class="s02-desc">스톡·음악·자막</div></div>
-    <div id="s02-s1" class="s02-star"><small>GitHub ★</small><span id="s02-n1">0</span></div>
-    <div id="s02-s2" class="s02-star"><small>GitHub ★</small><span id="s02-n2">0</span></div>
-    <div id="s02-s3" class="s02-star"><small>GitHub ★</small><span id="s02-n3">0</span></div>
+    <div id="s02-title">그림 말고,<br /><em id="s02-title-em">점 하나만</em></div>
+    <svg id="s02-svg" viewBox="0 0 800 760">
+      <circle id="s02-ring" cx="400" cy="390" r="300" fill="none" stroke="#4fd1c5" stroke-width="6" stroke-linecap="round" stroke-dasharray="1885" stroke-dashoffset="1885" transform="rotate(-90 400 390)" />
+    </svg>
+    <div id="s02-core">지우</div>
+    <div id="s02-n1" class="s02-node"><h3>선생님</h3><p>&ldquo;점 하나만 찍어 볼래?&rdquo;</p></div>
+    <div id="s02-n2" class="s02-node"><h3>연필 쥔 손</h3><p>점을 찍어요</p></div>
+    <div id="s02-n3" class="s02-node"><h3>작은 점</h3><p>도화지 위에</p></div>
   </div>
   <script>
     const tl = gsap.timeline({ paused: true });
-    tl.fromTo("#s02-title", { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.45, ease: "power3.out" }, 0.1);
-    // each layer drops as the narration names it: 엔진 ~0.4s, 그래픽 ~1.9s, 확장 ~3.4s
-    const stars = [61607, 55979, 62501];
-    [0.45, 1.95, 3.45].forEach((at, i) => {
-      const n = i + 1;
-      tl.fromTo("#s02-l" + n, { opacity: 0, y: -100 }, { opacity: 1, y: 0, duration: 0.5, ease: "bounce.out" }, at);
-      tl.fromTo("#s02-s" + n, { opacity: 0 }, { opacity: 1, duration: 0.25 }, at + 0.3);
-      const c = { v: 0 }, el = "#s02-n" + n;
-      tl.fromTo(c, { v: 0 }, { v: stars[i], duration: 0.8, ease: "power2.out",
-        onUpdate: () => { document.querySelector(el).textContent = Math.round(c.v).toLocaleString("en-US"); } }, at + 0.3);
+    tl.fromTo("#s02-title", { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.45, ease: "power3.out" }, 0.3);
+    tl.fromTo("#s02-title-em", { opacity: 0 }, { opacity: 1, duration: 0.4, ease: "power3.out" }, 2.66);
+    tl.fromTo("#s02-core", { opacity: 0, scale: 0.6 }, { opacity: 1, scale: 1, duration: 0.5, ease: "back.out(2)" }, 0.3);
+    // three clauses: 선생님 말풍선 0.3s, 손이 점을 찍음 2.66s, 작은 점 4.33s
+    const nodes = ["#s02-n1", "#s02-n2", "#s02-n3"];
+    const onsets = [0.3, 2.66, 4.33];
+    nodes.forEach((n, i) => {
+      const at = onsets[i];
+      tl.to("#s02-ring", { attr: { "stroke-dashoffset": 1885 - (1885 / 3) * (i + 1) }, duration: 0.5, ease: "power2.inOut" }, at);
+      tl.fromTo(n, { opacity: 0, y: 16 }, { opacity: 1, y: 0, duration: 0.4, ease: "power3.out" }, at);
+      tl.fromTo(n, { borderColor: "#ffb547" }, { borderColor: "#26315e", duration: 0.8 }, at + 0.2);
     });
-    tl.to("#root", { opacity: 0, duration: 0.3, ease: "power2.in" }, 5.7);
+    tl.to("#s02-core", { scale: 1.12, duration: 0.25, yoyo: true, repeat: 1, ease: "power2.out" }, 4.9);
+    tl.to("#root", { opacity: 0, duration: 0.3, ease: "power2.in" }, 5.73);
     window.__timelines["s02"] = tl;
   </script>
 </template>
