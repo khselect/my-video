@@ -133,7 +133,7 @@ python tools/extract_source.py sources/설치가이드.pdf lectures/oss-video-to
 
 ### 단계 2. 기획 (brief)
 
-✋ 클로드가 쓰기 전에 사람이 정합니다: **핵심 아이디어 한 문장**, 대상, 강조할 관점(또는 뺄 내용), 목표 길이, 화자.
+✋ 클로드가 쓰기 전에 사람이 정합니다: **핵심 아이디어 한 문장**, 대상, 강조할 관점(또는 뺄 내용), 목표 길이. (화자는 4단계에서 정함)
 → `lecture.json`의 `brief`
 
 ### 단계 3. 대본 (script)
@@ -148,6 +148,7 @@ Claude Code가 `source.md`와 brief로 `scenes.json`을 씁니다 (Studio의 "Cl
 * **출력**: `build/audio/`에 장면별 `<id>.wav`, 이어 붙인 `narration.wav`, 장면별 `start`/`duration`이 담긴 `manifest.json`. **영상 길이는 이 manifest에 맞춰 싱크를 잡습니다.**
 * **캐시**: 이미 만든 장면은 건너뜁니다. 문장을 고친 장면은 자동으로 다시 만들고, 그대로인데 다시 듣고 싶은 장면은 `--force s02`로 지정합니다. `--force`만 쓰면 전부 다시 만듭니다.
 * **백엔드**: `customvoice`(기본, 내장 화자 — 기본 `uncle_fu` 남성, 한국어 원어민은 `sohee` 여성뿐) · `clone`(내 목소리, 로컬 Qwen, 8장) · `fish`(내 목소리, Fish Audio 유료, 8장) · `silent`(모델 없이 길이만 — GPU 없는 기기에서 화면 작업용)
+* **화자 정하기 (Studio)**: 나레이션 방식·기본 화자는 왼쪽 '이 PC 설정'과 4단계 상단이 같은 값(모든 프로젝트에 바로 적용). 장면마다 다른 화자는 4단계 표의 '화자'에서 고름(이 프로젝트만, customvoice) → 명령어로는 `--scene-speaker s02=ryan`. 화자가 바뀐 장면만 다시 만듦.
 * **속도 참고**: 이전 버전 테스트에서 `sohee` 화자로 2개 장면(14.2초 분량)에 장면당 약 50초 걸렸습니다(Windows PC GPU).
 
 Windows (PowerShell):
