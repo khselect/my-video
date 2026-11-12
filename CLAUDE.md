@@ -61,17 +61,17 @@
 |---|---|---|---|
 | Claude (Opus, 추론 높음) | 코드 모션·레퍼런스 분석 | — | Studio 의 `claude -p` |
 | Newtake (+ MCP) | 영상·이미지·음악 모델 허브 (스폰서) | https://www.newtake.com/ | 미연결. 대안: Higgsfield 커넥터(이미지·영상·오디오) |
-| 프롬프트 공유 파일 | 영상에서 쓴 프롬프트 전체 | https://drive.google.com/file/d/1kENpvLdknCHIsvQnROxRgtrOQkUmjvrS/view | **미수집** (다음 단계) |
-| prompt-motion.com | 모션그래픽 프롬프트 모음 | https://prompt-motion.com/ | **미수집** |
+| 프롬프트 공유 파일 | 영상에서 쓴 프롬프트 11개 | https://drive.google.com/file/d/1kENpvLdknCHIsvQnROxRgtrOQkUmjvrS/view | 수집 → [요약](docs/research/motion-graphics-prompts.md#a-영상-속-프롬프트-11개-등장-순) |
+| prompt-motion.com | 모션그래픽 프롬프트 모음 | https://prompt-motion.com/ | **미수집** (네트워크 차단) |
 | Pinterest | 레퍼런스 검색 | https://www.pinterest.com/ | 5단계 참고 스타일 메모 |
 | HyperFrames / Remotion | HTML / React → 영상, 레이어별 수정 | — | 이미 사용 중 |
-| lemo-opuscar | 애니메이션·영화 느낌 영상 제작 도구 | https://github.com/lemomo-ai/lemo-opuscar | **미검토** |
+| lemo-opuscar | 코드로만 만드는 영화형 단편, 스타일 66개 (Claude Code 플러그인, MIT) | https://github.com/lemomo-ai/lemo-opuscar | 검토 → [요약](docs/research/motion-graphics-prompts.md#b-lemo-opuscar-lemomo-ai-mit--데모-cc-by-40) |
 | GPT 이미지 / 나노바나나 | 이미지 에셋 | (Newtake 경유) | Higgsfield `nano_banana`, 로컬 FLUX |
 | Gemini TTS (Google AI Studio 키) | 무료 나레이션 | — | `tools/tts.py --provider google` |
 | ElevenLabs Music | 배경 음악 | (Newtake 경유) | 미구현 (Higgsfield `generate_audio` 후보) |
 | Seedance 2.5 / MiniMax H3 | 영상 생성 비교 | (Newtake 경유) | Higgsfield `generate_video` 후보 |
 | Matics Media (YouTube 채널) | 레퍼런스 (절제된 색·아이콘·추상 개념 모션) | — | — |
-| 모션그래픽 용어 X 게시물 | 이징·효과 용어 정리 | https://x.com/charliejhills/status/2111094431965389088 | **미수집** |
+| 모션그래픽 용어 X 게시물 | 이징·효과 용어 정리 | https://x.com/charliejhills/status/2111094431965389088 | **미수집** (네트워크 차단) |
 
 ### 현재 프로그램과의 차이 → 개선 후보
 
@@ -92,6 +92,6 @@
 
 ### 다음 단계 (진행 순서)
 
-1. [ ] 미수집 자료 확보: 프롬프트 공유 파일, prompt-motion.com, 용어 X 게시물, lemo-opuscar
+1. [x] 미수집 자료 확보: 프롬프트 공유 파일·lemo-opuscar 완료 → [docs/research/motion-graphics-prompts.md](docs/research/motion-graphics-prompts.md) (prompt-motion.com·X 게시물은 네트워크 차단으로 남음)
 2. [ ] 개선 후보 우선순위 결정 후 하나씩 구현
 3. [ ] 영상 제작 전역 스킬 작성 (위 4단계 워크플로 + 프롬프트·사이트 목록 + 이 저장소 도구 연결)
