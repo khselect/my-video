@@ -156,8 +156,17 @@ def check_loudness(info: dict, ln: dict | None) -> dict:
             "lufs": i, "true_peak": tp, "lra": float(ln["input_lra"])}
 
 
+def _encode_audio(src: Path, dst: Path, filt: str) -> subprocess.CompletedProcess:
+    return sh(["ffmpeg", "-v", "error", "-y", "-i", str(src), "-map", "0:v?", "-map", "0:a", "-c:v", "copy",
+               "-af", filt, "-ar", "48000", "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", str(dst)])
+
+
 def normalize(path: Path) -> dict:
-    """Two-pass loudnorm to -14 LUFS in place (video copied). Returns what was done."""
+    """Bring the audio to -14 LUFS with true peak <= -1 dBTP, in place (video stream copied).
+
+    Gain to the target, then a peak limiter at -2.5 dBFS run at 4x sample rate (true peak + AAC overshoot headroom), then measure; if the
+    limiter ate loudness, one more pass from the original with the remaining gain added. loudnorm's own
+    linear mode cannot raise quiet, peaky material (e.g. drums) and its dynamic mode stops short of target."""
     info = probe(path)
     if not info["has_audio"]:
         return {"done": False, "reason": "no audio"}
@@ -167,17 +176,27 @@ def normalize(path: Path) -> dict:
     i, tp = float(ln["input_i"]), float(ln["input_tp"])
     if abs(i - TARGET_LUFS) <= 0.5 and tp <= MAX_TP:
         return {"done": False, "reason": "already on target", "lufs": i}
-    filt = (f"loudnorm=I={TARGET_LUFS}:TP={MAX_TP}:LRA=11:measured_I={ln['input_i']}:measured_TP={ln['input_tp']}"
-            f":measured_LRA={ln['input_lra']}:measured_thresh={ln['input_thresh']}:offset={ln['target_offset']}"
-            ":linear=true")
+    limit = 10 ** (-2.5 / 20)   # sample ceiling; limited at 4x rate so inter-sample (true) peaks are caught too
+    gain = TARGET_LUFS - i
     with tempfile.TemporaryDirectory() as td:
         tmp = Path(td) / ("norm" + path.suffix)
-        r = sh(["ffmpeg", "-v", "error", "-y", "-i", str(path), "-map", "0:v?", "-map", "0:a", "-c:v", "copy",
-                "-af", filt, "-ar", "48000", "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", str(tmp)])
-        if r.returncode or not tmp.exists():
-            return {"done": False, "reason": "ffmpeg failed: " + r.stderr.strip()[-300:]}
+        after = None
+        for _ in range(3):
+            filt = (f"aresample=192000,volume={gain:.2f}dB,alimiter=limit={limit:.4f}:attack=2:release=60:level=false,"
+                    "aresample=48000")
+            r = _encode_audio(path, tmp, filt)
+            if r.returncode or not tmp.exists():
+                return {"done": False, "reason": "ffmpeg failed: " + r.stderr.strip()[-300:]}
+            m = measure_loudness(tmp)
+            after = (float(m["input_i"]), float(m["input_tp"])) if m else None
+            if not after or abs(after[0] - TARGET_LUFS) <= 0.5:
+                break
+            gain += TARGET_LUFS - after[0]          # the limiter took some loudness away: push a bit more
         shutil.move(str(tmp), path)
-    return {"done": True, "before_lufs": i, "before_tp": tp}
+    out = {"done": True, "before_lufs": i, "before_tp": tp, "gain_db": round(gain, 2)}
+    if after:
+        out.update(after_lufs=after[0], after_tp=after[1])
+    return out
 
 
 # ---------------- lecture context ----------------

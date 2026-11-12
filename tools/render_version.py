@@ -149,6 +149,15 @@ def finalize(project: Path, video: Path, a) -> dict:
                               "palette_ok": cmp["palette_ok"], "tolerance": cmp["tolerance"]}
         print(f"reference compare: {len(cmp['off'])} item(s) off by more than ±{cmp['tolerance']:.0%}"
               + (f": {', '.join(labels)}" if labels else ""))
+    beats_json = project / "assets" / "music" / "beats.json"
+    if beats_json.exists():  # project music analysed: how close do the render's transitions land to beats?
+        import beats
+        bc = beats.check(json.loads(beats_json.read_text(encoding="utf-8")), video)
+        (video.parent / (video.name + ".beats.json")).write_text(json.dumps(bc, ensure_ascii=False, indent=1) + "\n",
+                                                                  encoding="utf-8")
+        out["beat_sync"] = {k: bc[k] for k in ("bpm", "transitions", "on_beat", "on_downbeat", "median_offset_ms",
+                                               "tolerance_ms", "status", "message")}
+        print(f"beat sync: {bc['message']}")
     return out
 
 

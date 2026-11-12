@@ -537,6 +537,7 @@ function pVisuals() {
       ${sDirty ? '<span class="muted" style="color:var(--warn)">저장하지 않은 변경 — 저장하면 아래 구성표가 이 스타일 기준으로 바뀝니다</span>' : '<span class="muted">저장됨</span>'}
       ${s.engine === "skill" ? `<button onclick="analyzeStyle('${esc(s.id)}')" style="margin-left:auto">${s.draft ? "Claude로 옵션 분석" : "옵션 다시 분석"}</button>` : ""}</div>
     ${refBox()}
+    ${musicBox(s)}
   </div>
   <div class="card">
     <h3 style="margin-top:0">③ 장면 구성표 — 렌더될 화면 미리 정하기</h3>
@@ -562,6 +563,29 @@ function pVisuals() {
         : '<p class="muted">아직 없음 — 장면 제작 때 옵션 \'캐릭터·이미지\'에 따라 만들어집니다</p>'}`}
     ${gate("visuals")}
   </div>`;
+}
+/* music & beats: one track per project, analysed by tools/beats.py; build prompts snap motion to its beats */
+function musicBox(s) {
+  const m = view.music || {}, b = m.beats;
+  const rule = s.narration === "none"
+    ? "이 스타일은 나레이션이 없어 <b>모든 컷·글자 등장을 박에</b> 맞추고 영상 길이를 음원 길이에 맞춥니다."
+    : "나레이션이 장면 길이를 정하므로 <b>장면 경계는 그대로</b> 두고, 장면 안의 등장·강조·전환 시작만 ±0.3초 안의 박에 맞춥니다.";
+  return `<details class="musicbox" ${m.file ? "open" : ""} style="margin-top:10px"><summary><b>음악·비트</b> <span class="muted">— 배경 음악을 넣고 움직임을 박자에 맞추기</span></summary>
+    <p class="muted">${rule} 음원 파일은 git 에 올라가지 않고 분석 결과(beats.json)만 남습니다. 무료 음원(예: Pixabay Music)은 라이선스를 확인하세요.</p>
+    <div class="row">${m.file ? `<span>🎵 ${esc(m.file)} <span class="muted">(${m.mb}MB)</span> <button class="mini" onclick="act('delete_music',{})">✕</button></span>`
+      : `<button onclick="$('musicPick').click()">음원 올리기 (mp3·wav·m4a)</button>`}
+      <input type="file" id="musicPick" accept=".mp3,.wav,.m4a,.aac,.flac,.ogg" style="display:none" onchange="uploadMusic(this.files)">
+      <input id="bpmHint" value="${esc(m.bpm_hint || "")}" placeholder="BPM 힌트 (알면, 예: 92)" style="width:170px">
+      <button class="primary" onclick="act('analyze_music',{bpm_hint:$('bpmHint').value.trim()})" ${m.file ? "" : "disabled"}>${b ? "다시 분석" : "박자 분석"}</button></div>
+    ${b ? `<p style="margin:8px 0 0"><b>${b.bpm} BPM</b> · 한 박 ${b.beat_seconds}초 · 첫 박 ${b.first_beat}초 · 박 ${b.n_beats}개 · 마디 ${b.n_bars}개 · 악센트 ${b.n_accents}개 · 길이 ${b.seconds}초
+      <span class="muted">— 템포가 두 배·절반으로 잡혔으면 BPM 힌트를 넣고 다시 분석</span></p>` : ""}</details>`;
+}
+async function uploadMusic(files) {
+  const f = files[0]; if (!f) return;
+  const r = await fetch(`/api/lectures/${encodeURIComponent(cur)}/upload_music`, { method: "POST",
+    headers: { "Content-Type": "application/octet-stream", "X-Filename": encodeURIComponent(f.name) }, body: f });
+  if (!r.ok) { toast((await r.json()).error || "업로드 실패"); return; }
+  await act("analyze_music", { bpm_hint: $("bpmHint")?.value.trim() || "" });
 }
 /* storyboard: Claude plans first (no files, no paid calls), the user approves, then the build follows it */
 function storyboardBox(s) {
@@ -695,8 +719,15 @@ function refCompareLine(v) {
   return c.off ? `<p class="muted" style="color:var(--warn)">참고 영상 대조: ±${Math.round(c.tolerance * 100)}% 를 넘은 항목 ${c.off}개 — ${esc(what)} · 상세 renders/${esc(v.file)}.compare.md</p>`
     : `<p class="muted">참고 영상 대조: 모든 항목이 ±${Math.round(c.tolerance * 100)}% 안</p>`;
 }
+function beatLine(v) {
+  const b = v && v.beat_sync;
+  if (!b) return "";
+  const strict = (styleById(selStyle().id) || {}).narration === "none";
+  const color = strict && b.status !== "pass" ? "color:var(--warn)" : "";
+  return `<p class="muted" style="${color}">박 맞춤 (${b.bpm} BPM): ${esc(b.message)}${strict ? "" : " — 나레이션 영상은 장면 경계가 나레이션을 따르므로 참고값"} · 상세 renders/${esc(v.file)}.beats.json</p>`;
+}
 function qaBox(v) {
-  return qaBoxInner(v) + refCompareLine(v);
+  return qaBoxInner(v) + refCompareLine(v) + beatLine(v);
 }
 function qaBoxInner(v) {
   const q = v && v.qa;

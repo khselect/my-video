@@ -261,6 +261,8 @@ def job_progress(job: dict, text: str) -> dict:
             label = "참고 스타일 분석 중 (Claude)"
         elif kind == "claude-storyboard":
             label = "스토리보드 작성 중 (Claude · 계획만, 파일 생성 없음)"
+        elif kind == "analyze-music":
+            label = "음악 박자 분석 중 (BPM·박·강박·악센트)"
         elif kind == "measure-ref":
             label = "참고 영상 측정 중 (전환·fps·움직임·색)"
         elif kind == "claude-style":
@@ -498,7 +500,7 @@ def prompt_style(slug: str, st: dict, style: dict, opts: dict, feedback: dict | 
 - 유료 API(FAL, ElevenLabs, ChatCut 등)는 호출하지 않는다. 키도 설정되어 있지 않다.
 - 내용은 이 강의의 원문·기획·대본에서 온다. 스킬 예시의 문구·장면을 그대로 쓰지 않는다.{out_rule}
 - 끝나면 만든 파일과 사람이 확인할 점을 짧게 보고한다."""
-    text += motion_hint(skill_owned=True) + ref_hint(slug) + storyboard_hint(slug, st)
+    text += motion_hint(skill_owned=True) + ref_hint(slug) + beat_hint(slug, style) + storyboard_hint(slug, st)
     if feedback:
         lines = "\n".join(f"- {sid}: {txt}" for sid, txt in feedback.items() if txt.strip())
         text += f"\n\n이미 만든 결과를 아래 피드백대로만 고친다(다른 부분은 건드리지 않는다):\n{lines}"
@@ -517,7 +519,7 @@ def edu_prompt(slug: str, st: dict, style: dict, opts: dict, feedback: dict | No
         extra += ("\n\n사용자가 Studio 에서 승인한 유료 사용 범위 (이 범위만): " + " / ".join(paid)) if paid else \
                  "\n\n유료 서비스(Higgsfield 등)는 호출하지 않는다."
     return (prompt_visuals(slug, feedback) + edu_option_lines(style, opts) + extra + (f"\n\n{plan}" if plan else "")
-            + ref_hint(slug) + storyboard_hint(slug, st))
+            + ref_hint(slug) + beat_hint(slug, style) + storyboard_hint(slug, st))
 
 
 def _when(cond: dict, opts: dict) -> bool:
@@ -750,6 +752,54 @@ def ref_hint(slug: str) -> str:
     return text
 
 
+# ---- music & beats: one music file per project (assets/music/, git-ignored) + beats.json (tools/beats.py)
+MUSIC_EXTS = {".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg"}
+
+
+def music_dir(slug: str) -> Path:
+    return lecture_dir(slug) / "assets" / "music"
+
+
+def project_music(slug: str) -> Path | None:
+    d = music_dir(slug)
+    files = sorted(p for p in d.iterdir() if p.suffix.lower() in MUSIC_EXTS) if d.exists() else []
+    return files[0] if files else None
+
+
+def music_view(slug: str) -> dict:
+    m = project_music(slug)
+    beats = read_json(music_dir(slug) / "beats.json") if (music_dir(slug) / "beats.json").exists() else None
+    meta = read_json(music_dir(slug) / "music.json", {}) or {}
+    return {"file": m.name if m else "", "mb": round(m.stat().st_size / 1e6, 1) if m else 0,
+            "bpm_hint": meta.get("bpm_hint", ""), "analyzed_at": meta.get("analyzed_at", ""),
+            "beats": {k: beats[k] for k in ("bpm", "beat_seconds", "first_beat", "seconds")} | {
+                "n_beats": len(beats["beats"]), "n_bars": len(beats["downbeats"]), "n_accents": len(beats["accents"])}
+            if beats else None}
+
+
+def beat_hint(slug: str, style: dict) -> str:
+    m, bj = project_music(slug), music_dir(slug) / "beats.json"
+    if not m or not bj.exists():
+        return ""
+    b = read_json(bj)
+    fmt = lambda xs: ", ".join(f"{x:.2f}" for x in xs)  # noqa: E731
+    grid = (f"음악: {m} — {b['bpm']} BPM, 한 박 {b['beat_seconds']}초, 첫 박 {b['first_beat']}초 "
+            f"(n번째 박 = {b['first_beat']} + n×{b['beat_seconds']}), 길이 {b['seconds']}초.\n"
+            f"- 마디 첫 박(강박): {fmt(b['downbeats'][:48])}\n- 악센트(가장 센 타격): {fmt(b['accents'][:32])}")
+    if style.get("engine") == "edu-video":
+        place = (f"\n- 루트 index.html 에 <audio id=\"music\" src=\"assets/music/{m.name}\" data-start=\"0\" data-volume=\"0.12\"> 를 넣는다 "
+                 "(나레이션 아래 깔리는 크기, 영상이 음악보다 길면 data-duration 으로 끝을 맞춘다).")
+    else:
+        place = "\n- 음악은 Studio 6단계 렌더가 붙인다. 스킬의 음악 생성 스크립트는 실행하지 않는다."
+    if style.get("narration") == "none":
+        rule = ("\n박 맞춤 (나레이션 없음): 영상 길이를 음원 길이에 맞추고, 모든 장면 전환·텍스트 등장을 박에, 큰 전환·타이틀은 강박·악센트에 둔다. "
+                "빠른 구간과 쉬는 구간을 섞되 매 박마다 컷하지는 않는다.")
+    else:
+        rule = ("\n박 맞춤 (나레이션 우선): 장면 경계(나레이션 manifest)는 움직이지 않는다. 장면 안의 요소 등장·강조 팝·카메라 히트·"
+                "전환 효과 시작은 ±0.3초 안의 가장 가까운 박으로 옮기고(강조는 강박·악센트 우선), 그 안에 박이 없으면 그대로 둔다.")
+    return "\n\n" + grid + place + rule + " 렌더 후 Studio 가 전환과 박의 차이를 ms 로 잰다."
+
+
 def storyboard_path(slug: str) -> Path:
     return lecture_dir(slug) / "storyboard.md"
 
@@ -941,6 +991,7 @@ def lecture_view(slug: str) -> dict:
         "style": {"id": style["id"], "options": opts},
         "plan": plan_view(slug, st, style, opts),
         "ref": ref_view(slug),
+        "music": music_view(slug),
         "storyboard": {**(st.get("storyboard") or {}),
                        "text": storyboard_path(slug).read_text(encoding="utf-8") if storyboard_path(slug).exists() else ""},
         "style_assets": style_assets(d, style),
@@ -1067,6 +1118,49 @@ def do_action(slug: str, action: str, body: dict) -> dict:
             if f.suffix.lower() in REF_VIDEO_EXTS:
                 shutil.rmtree(ref_dir(slug) / "measure", ignore_errors=True)
         return {"ok": True}
+
+    if action == "upload_music":   # raw upload, see do_POST
+        name = Path(body["name"]).name
+        ext = Path(name).suffix.lower()
+        if ext not in MUSIC_EXTS:
+            raise ValueError("음원은 mp3·wav·m4a·aac·flac·ogg 만 됩니다")
+        md = music_dir(slug); md.mkdir(parents=True, exist_ok=True)
+        for old in md.iterdir():      # one music file per project
+            if old.suffix.lower() in MUSIC_EXTS or old.name == "beats.json":
+                old.unlink()
+        (md / re.sub(r"[^\w.\-]+", "_", name)).write_bytes(body["data"])
+        unapprove_storyboard(st); save_state(slug, st)
+        return {"ok": True}
+
+    if action == "delete_music":
+        md = music_dir(slug)
+        if md.exists():
+            for old in md.iterdir():
+                if old.suffix.lower() in MUSIC_EXTS or old.name in ("beats.json", "music.json"):
+                    old.unlink()
+        unapprove_storyboard(st); save_state(slug, st)
+        return {"ok": True}
+
+    if action == "analyze_music":
+        m = project_music(slug)
+        if not m:
+            raise ValueError("음원 파일을 먼저 올리세요")
+        hint = str(body.get("bpm_hint", "")).strip()
+        if hint and not re.match(r"^\d{2,3}(\.\d+)?$", hint):
+            raise ValueError("BPM 힌트는 숫자로 (예: 92)")
+        meta_p = music_dir(slug) / "music.json"
+        meta = read_json(meta_p, {}) or {}
+        meta["bpm_hint"] = hint
+        write_json(meta_p, meta)
+
+        def stamp_music():
+            mm = read_json(meta_p, {}) or {}
+            mm["analyzed_at"] = time.strftime("%Y-%m-%dT%H:%M:%S")
+            write_json(meta_p, mm)
+            s2 = load_state(slug); unapprove_storyboard(s2); save_state(slug, s2)
+        cmd = [py, str(TOOLS / "beats.py"), "analyze", str(m), "--out", str(music_dir(slug) / "beats.json"),
+               *(["--bpm-hint", hint] if hint else [])]
+        return {"job": run_job(slug, "analyze-music", cmd, ROOT, after=stamp_music)}
 
     if action == "measure_ref":
         vid = ref_video(slug)
@@ -1238,6 +1332,8 @@ def do_action(slug: str, action: str, body: dict) -> dict:
         music = work / style["music_from"] if style.get("music_from") and (work / style["music_from"]).exists() else None
         if not music and opts.get("music_file", "").strip():
             music = Path(opts["music_file"].strip()).expanduser()
+        if not music:
+            music = project_music(slug)
         args = [py, str(TOOLS / "render_style.py"), str(d), "--kind", style["id"], "--out", str(out),
                 "--cmd-json", json.dumps(cmd, ensure_ascii=False),
                 "--audio-args-json", json.dumps(style.get("render_audio") or [], ensure_ascii=False),
@@ -1422,6 +1518,12 @@ class Handler(BaseHTTPRequestHandler):
                     raise ValueError(f"파일이 비었거나 너무 큽니다 (최대 {MAX_UPLOAD >> 20}MB)")
                 name = unquote(self.headers.get("X-Filename") or "")
                 return self.send_json(do_action(parts[2], "upload_source", {"name": name, "data": self.rfile.read(n)}))
+            if len(parts) == 4 and parts[:2] == ["api", "lectures"] and parts[3] == "upload_music":
+                n = int(self.headers.get("Content-Length") or 0)
+                if not n or n > MAX_UPLOAD:
+                    raise ValueError(f"파일이 비었거나 너무 큽니다 (최대 {MAX_UPLOAD >> 20}MB)")
+                name = unquote(self.headers.get("X-Filename") or "")
+                return self.send_json(do_action(parts[2], "upload_music", {"name": name, "data": self.rfile.read(n)}))
             if len(parts) == 4 and parts[:2] == ["api", "lectures"] and parts[3] == "upload_ref":
                 n = int(self.headers.get("Content-Length") or 0)
                 if not n or n > MAX_UPLOAD:

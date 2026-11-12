@@ -57,3 +57,7 @@ lectures/*/style-ref/*.webp
 # reference videos and frames taken from them are third-party too; the measured numbers (spec.json/md) are kept
 lectures/*/style-ref/reference.*
 lectures/*/style-ref/measure/*.jpg
+# project music: the audio file is not committed (licence, size); the analysis (beats.json, music.json) is
+lectures/*/assets/music/*
+!lectures/*/assets/music/beats.json
+!lectures/*/assets/music/music.json
