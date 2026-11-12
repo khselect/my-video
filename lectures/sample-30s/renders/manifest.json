@@ -119,6 +119,38 @@
       "seconds": 36.33,
       "resolution": "1920x1080",
       "has_audio": true
+    },
+    {
+      "version": "v005",
+      "file": "v005_2026-11-12_7731755.mp4",
+      "kind": "render",
+      "engine": "hyperframes",
+      "composition": null,
+      "created": "2026-11-12T13:49:46",
+      "render_seconds": 54.4,
+      "source": {
+        "commit": "7731755",
+        "dirty": false,
+        "branch": "claude/zen-bohr-ic3isl",
+        "changed": []
+      },
+      "command": "npx hyperframes render -o renders/v005_2026-11-12_7731755.mp4",
+      "note": "새 모션 규칙으로 다시 제작 (관통 요소·카메라·전환)",
+      "bytes": 4618644,
+      "sha256": "da92b088d5c4df3c9dd9689aa24dd004c981248e02555dfd2b9352281fe16f22",
+      "seconds": 36.33,
+      "resolution": "1920x1080",
+      "has_audio": true,
+      "qa": {
+        "overall": "warn",
+        "blank": "pass",
+        "freeze": "pass",
+        "loudness": "warn",
+        "readtime": "pass",
+        "messages": [
+          "음량: 거의 무음 (-inf LUFS)"
+        ]
+      }
     }
   ]
 }

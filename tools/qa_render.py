@@ -36,6 +36,8 @@ BLANK_EDGE = 0.6        # mean |dx|+|dy| (0-255 grey) below this = no shapes/tex
 BLANK_STD = 12.0        # ... and pixel spread below this (plain or graded background; soft photos stay above)
 BLACK_LUMA = 10.0       # mean grey below this and blank = black frame
 BLANK_WARN_S, BLANK_FAIL_S = 0.3, 1.0
+SALIENT_DIFF, SALIENT_MIN = 50, 12   # 480x270 re-check: >= 12 pixels this far from the background = a small element
+                                     # (a through-line dot, a word) is on screen — "minimal", not empty
 FREEZE_DIFF = 0.15      # mean |frame - previous| below this = nothing moves
 FREEZE_WARN_S = 4.0
 TARGET_LUFS, LUFS_TOL, MAX_TP = -14.0, 1.0, -1.0
@@ -103,19 +105,35 @@ def runs(mask: np.ndarray, fps: int) -> list[tuple[float, float]]:
     return out
 
 
-def check_blank(s: dict, fps: int) -> dict:
+def salient_pixels(video: Path, t: float) -> int:
+    """Pixels clearly different from the background at 480x270 — catches a small dot the 192x108 pass averages away."""
+    g = grey_frames(video, fps=None, start=max(0.0, t), dur=0.05, size=(480, 270))
+    if not len(g):
+        return 0
+    f = g[0]
+    return int((np.abs(f - np.median(f)) > SALIENT_DIFF).sum())
+
+
+def check_blank(s: dict, fps: int, video: Path | None = None) -> dict:
     blank = (s["edge"] < BLANK_EDGE) & (s["std"] < BLANK_STD)
-    segs = []
+    segs, minimal = [], []
     for t, length in runs(blank, fps):
         i0 = int(t * fps)
         black = bool(s["luma"][i0: i0 + max(1, int(length * fps))].mean() < BLACK_LUMA)
-        segs.append({"t": t, "seconds": length, "kind": "black" if black else "empty"})
+        seg = {"t": t, "seconds": length, "kind": "black" if black else "empty"}
+        if video is not None and not black:
+            n = min(salient_pixels(video, t + length / 2), salient_pixels(video, t))
+            if n >= SALIENT_MIN:          # a deliberate hold on one element (motion-rules: the through-line stays visible)
+                minimal.append(dict(seg, kind="minimal", salient_pixels=n))
+                continue
+        segs.append(seg)
     longest = max((g["seconds"] for g in segs), default=0.0)
-    first = bool(len(blank) and blank[0])
+    first = bool(len(blank) and blank[0]) and not (minimal and minimal[0]["t"] == 0)
     status = "fail" if longest >= BLANK_FAIL_S else "warn" if longest >= BLANK_WARN_S or first else "pass"
     msg = (f"빈 화면 {len(segs)}구간, 가장 긴 것 {longest:.1f}초" if segs else "빈 화면 없음") + \
-          (" · 0초 프레임이 비어 있음(썸네일)" if first else "")
-    return {"status": status, "message": msg, "segments": segs[:30],
+          (" · 0초 프레임이 비어 있음(썸네일)" if first else "") + \
+          (f" · 작은 요소만 보이는 순간 {len(minimal)}곳 (전환 중 관통 요소 등, 빈 화면 아님)" if minimal else "")
+    return {"status": status, "message": msg, "segments": segs[:30], "minimal": minimal[:30],
             "thresholds": {"edge": BLANK_EDGE, "std": BLANK_STD, "warn_s": BLANK_WARN_S, "fail_s": BLANK_FAIL_S}}
 
 
@@ -256,7 +274,7 @@ def run_qa(video: Path, lecture: Path | None = None, do_normalize: bool = False)
     info = probe(video)
     frames = grey_frames(video)
     s = frame_stats(frames)
-    checks = {"blank": check_blank(s, SAMPLE_FPS), "freeze": check_freeze(s, SAMPLE_FPS),
+    checks = {"blank": check_blank(s, SAMPLE_FPS, video), "freeze": check_freeze(s, SAMPLE_FPS),
               "loudness": check_loudness(info, measure_loudness(video) if info["has_audio"] else None)}
     timings = None
     if lecture:
