@@ -74,6 +74,7 @@
   .style.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
   .warnbox { background: var(--chip); border-left: 3px solid var(--warn); border-radius: 8px; padding: 8px 12px; font-size: 13px; margin: 8px 0; }
   .warnbox summary { cursor: pointer; font-weight: 700; }
+  .sttdiff { font-size: 12px; margin-top: 4px; } .sttdiff s { color: var(--muted); }
   .warnbox ul { margin: 6px 0 0; padding-left: 18px; }
   .cats { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
   .refbox { border-top: 1px dashed var(--line); margin-top: 14px; padding-top: 10px; }
@@ -135,6 +136,9 @@
       <label>내 목소리 프로필 (clone)</label><input id="cfg_voice" />
       <label>Claude Code 명령</label><input id="cfg_claude_cmd" />
       <label>이미지 생성 Python (스토리 캐릭터, 로컬 FLUX)</label><input id="cfg_image_python" />
+      <label>다시 듣기 검사 Python (faster-whisper 가 설치된 것, 예: qwen-tts venv)</label><input id="cfg_stt_python" />
+      <label>다시 듣기 엔진 · 모델</label><div class="row"><select id="cfg_stt_engine" style="flex:1"><option value="auto">auto — faster-whisper, 없으면 whisper.cpp(npx)</option><option value="faster-whisper">faster-whisper</option><option value="hyperframes">whisper.cpp (npx hyperframes transcribe)</option></select>
+        <select id="cfg_stt_model" style="width:140px"><option>small</option><option>medium</option><option>large-v3</option><option>base</option></select></div>
       <div class="row" style="margin-top:8px"><button onclick="saveConfig()">저장</button></div>
       <p class="muted">studio/config.local.json 에 저장 (git 제외, 맥북에서는 따로 설정)</p>
     </details>
@@ -195,7 +199,7 @@ async function boot() {
     <li>기획 → 대본 → 나레이션 → 장면 → 렌더 → 게시 순서로 검토·승인합니다.</li></ol></div>`;
 }
 async function saveConfig() {
-  const body = {}; for (const k of ["qwen_python", "narrate_backend", "speaker", "voice", "claude_cmd", "image_python"]) body[k] = $("cfg_" + k).value;
+  const body = {}; for (const k of ["qwen_python", "narrate_backend", "speaker", "voice", "claude_cmd", "image_python", "stt_python", "stt_engine", "stt_model"]) body[k] = $("cfg_" + k).value;
   await api("/api/config", body); toast("설정 저장됨");
 }
 async function createLecture() {
@@ -328,11 +332,24 @@ function moveScene(i, d) { view.scenes = readScenes(); const a = view.scenes.sce
 async function saveScenes() { await act("save_scenes", { scenes: readScenes() }); toast("대본 저장됨 — 이후 단계는 다시 승인 필요"); }
 
 /* 4 narration */
+const STT_LABEL = { pass: ["일치", "approved"], warn: ["확인", "qawarn"], fail: ["다름", "stale"], accepted: ["맞게 들림", "approved"] };
+function sttCell(id) {
+  const r = view.stt, x = r && r.scenes.find((y) => y.id === id);
+  if (!x) return '<span class="muted">—</span>';
+  const [lab, cls] = STT_LABEL[x.status] || [x.status, ""];
+  const diffs = (x.diffs || []).slice(0, 4).map((d) => `<div class="sttdiff"><s>${esc(d.script || "∅")}</s> → <b>${esc(d.heard || "(안 들림)")}</b></div>`).join("");
+  const keys = (x.key_terms_missed || []).length ? `<div class="muted">핵심어: ${x.key_terms_missed.map(esc).join(", ")}</div>` : "";
+  return `<span class="badge ${cls}">${lab} ${Math.round(x.match * 100)}%</span>${x.stale ? ' <span class="muted">(음성이 바뀜 — 다시 검사)</span>' : ""}
+    ${x.status === "warn" || x.status === "fail" ? `${diffs}${keys}<button class="mini" onclick="act('stt_accept',{scene:'${esc(id)}'})">맞게 들림</button>` : ""}`;
+}
 function pNarration() {
   const m = view.audio, t = Date.now();
+  // scenes the listen-back check flagged start as "다시" unless a person already judged them
+  for (const id of (view.stt && !view.stt.stale ? view.stt.flagged : [])) if (!review[id]) review[id] = "redo";
   const rows = m ? m.scenes.map((s) => `<tr><td><b>${esc(s.id)}</b><br><span class="muted">${s.start}s · ${s.duration}s</span></td>
       <td>${s.file ? `<audio controls preload="none" src="/media/${encodeURIComponent(cur)}/build/audio/${esc(s.file)}?t=${t}" style="width:100%"></audio>` : '<span class="muted">내레이션 없음</span>'}
       <div class="muted">${esc(((view.scenes || {}).scenes || []).find((x) => x.id === s.id)?.narration || "")}</div></td>
+      <td>${sttCell(s.id)}</td>
       <td style="white-space:nowrap"><label style="display:inline"><input type="radio" name="r_${esc(s.id)}" value="ok" ${review[s.id] === "ok" ? "checked" : ""} onchange="review['${esc(s.id)}']='ok'" style="width:auto"> 좋음</label><br>
       <label style="display:inline"><input type="radio" name="r_${esc(s.id)}" value="redo" ${review[s.id] === "redo" ? "checked" : ""} onchange="review['${esc(s.id)}']='redo'" style="width:auto"> 다시</label></td></tr>`).join("") : "";
   const vs = styleById(view.style.id);
@@ -344,9 +361,17 @@ function pNarration() {
     <p class="muted">장면당 수십 초 걸립니다(GPU 기준 약 50초). silent 는 모델 없이 길이만 잡는 시험용.</p>
     ${m ? `<p>총 ${m.total_duration}초 · ${esc(m.backend)} ${esc(m.speaker || m.voice || "")}</p>
       <audio controls preload="none" src="/media/${encodeURIComponent(cur)}/build/audio/narration.wav?t=${t}" style="width:100%"></audio>
-      <table><tr><th style="width:110px">장면</th><th>듣기</th><th style="width:80px">판단</th></tr>${rows}</table>` : '<p class="muted">아직 생성 전</p>'}
+      ${sttBar()}
+      <table><tr><th style="width:110px">장면</th><th>듣기</th><th style="width:230px">다시 듣기 (음성 인식)</th><th style="width:80px">판단</th></tr>${rows}</table>` : '<p class="muted">아직 생성 전</p>'}
     <p class="muted">확인할 것: 발음(영어·숫자), 문장 끝 억양, 장면 간 톤 차이. 모두 '좋음'이어야 승인됩니다.</p>${gate("narration")}</div>
     ${voiceCard()}`;
+}
+function sttBar() {
+  const r = view.stt;
+  const state = !r ? '<span class="muted">아직 검사 안 함</span>'
+    : `<span class="muted">${esc(r.checked.replace("T", " "))} · ${esc(r.engine)} ${esc(r.model)} · ${r.flagged.length ? `확인할 장면 ${r.flagged.length}개 (${r.flagged.map(esc).join(", ")}) — '다시'로 표시됨` : "모든 장면 일치"}${r.stale ? " · <b>나레이션이 바뀌어 다시 검사 필요</b>" : ""}</span>`;
+  return `<div class="row" style="margin:8px 0"><button onclick="act('stt_check',{})">다시 듣기 검사</button> ${state}</div>
+    <p class="muted" style="margin-top:0">음성 인식으로 나레이션을 되읽어 대본과 대조합니다 — 이름·숫자·영어 오독, 빠진 말, 잘린 문장. 인식기도 틀릴 수 있으니 직접 들어 보고 맞으면 '맞게 들림'.</p>`;
 }
 /* my voice as narrator: one recording → Fish Audio clone (MCP, paid TTS) and/or local Qwen profile (free) */
 let voiceSample = "";

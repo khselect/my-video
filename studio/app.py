@@ -58,6 +58,9 @@ DEFAULT_CONFIG = {
     "voice": "me",
     "claude_cmd": "claude",
     "image_python": str(Path.home() / ".edu-video" / "image-venv" / "bin" / "python"),   # tools/setup_image_gen.sh
+    "stt_python": sys.executable,        # a Python with faster-whisper (e.g. the qwen-tts venv), else whisper.cpp via npx
+    "stt_engine": "auto",                # auto | faster-whisper | hyperframes
+    "stt_model": "small",                # whisper model for the narration listen-back check
 }
 SLUG_RE = re.compile(r"^[A-Za-z0-9가-힣._-]{1,80}$")
 
@@ -261,6 +264,11 @@ def job_progress(job: dict, text: str) -> dict:
             label = "참고 스타일 분석 중 (Claude)"
         elif kind == "claude-storyboard":
             label = "스토리보드 작성 중 (Claude · 계획만, 파일 생성 없음)"
+        elif kind == "stt-check":
+            total = len(_scene_ids(job["slug"], with_text=True)) or 1
+            done = len(re.findall(r"^scene \S+ (?:pass|warn|fail|accepted) ", text, re.M))
+            pct = 5 + 95 * min(done, total) / total
+            label = f"다시 듣기 {done}/{total} 장면" + (" · 음성 인식 모델 준비 중" if not done else "")
         elif kind == "analyze-music":
             label = "음악 박자 분석 중 (BPM·박·강박·악센트)"
         elif kind == "measure-ref":
@@ -752,6 +760,27 @@ def ref_hint(slug: str) -> str:
     return text
 
 
+# ---- narration listen-back: tools/stt_check.py → build/audio/stt.json (+ accepted scenes in lecture.json)
+
+def stt_view(slug: str, st: dict) -> dict | None:
+    d = lecture_dir(slug) / "build" / "audio"
+    r = read_json(d / "stt.json") if (d / "stt.json").exists() else None
+    if not r:
+        return None
+    man = read_json(d / "manifest.json", {}) or {}
+    now = {s["id"]: s.get("hash") for s in man.get("scenes", [])}
+    acc = st.get("stt_accept") or {}
+    for row in r["scenes"]:
+        row["stale"] = now.get(row["id"]) != row.get("hash")      # audio regenerated since the check
+        if row["status"] in ("warn", "fail") and not row["stale"] and acc.get(row["id"]) == row.get("hash"):
+            row["status"] = "accepted"    # a person accepted exactly this take
+        elif row["status"] == "accepted" and row["stale"]:
+            row["status"] = "warn"        # accepted an older take: listen again
+    r["flagged"] = [x["id"] for x in r["scenes"] if x["status"] in ("warn", "fail")]
+    r["stale"] = any(x["stale"] for x in r["scenes"]) or set(now) - {x["id"] for x in r["scenes"]} != set()
+    return r
+
+
 # ---- music & beats: one music file per project (assets/music/, git-ignored) + beats.json (tools/beats.py)
 MUSIC_EXTS = {".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg"}
 
@@ -992,6 +1021,7 @@ def lecture_view(slug: str) -> dict:
         "plan": plan_view(slug, st, style, opts),
         "ref": ref_view(slug),
         "music": music_view(slug),
+        "stt": stt_view(slug, st),
         "storyboard": {**(st.get("storyboard") or {}),
                        "text": storyboard_path(slug).read_text(encoding="utf-8") if storyboard_path(slug).exists() else ""},
         "style_assets": style_assets(d, style),
@@ -1078,6 +1108,26 @@ def do_action(slug: str, action: str, body: dict) -> dict:
             (d / "assets" / "voice").mkdir(parents=True, exist_ok=True)
             shutil.copy(d / "build" / "audio" / "narration.wav", d / "assets" / "voice" / "narration.wav")
         return {"job": run_job(slug, "narrate", cmd, ROOT, after=copy_track)}
+
+    if action == "stt_check":
+        if not (d / "build" / "audio" / "manifest.json").exists():
+            raise ValueError("나레이션을 먼저 생성하세요")
+        acc_p = d / "build" / "audio" / "stt_accept.json"
+        write_json(acc_p, st.get("stt_accept") or {})
+        cmd = [cfg.get("stt_python") or py, str(TOOLS / "stt_check.py"), str(d), "--engine", cfg.get("stt_engine", "auto"),
+               "--model", cfg.get("stt_model", "small"), "--accept", str(acc_p)]
+        if body.get("scenes"):
+            cmd += ["--scenes", *body["scenes"]]
+        return {"job": run_job(slug, "stt-check", cmd, ROOT)}
+
+    if action == "stt_accept":   # a person listened: the flagged scene is read correctly (holds for this audio only)
+        r = stt_view(slug, st) or {}
+        row = next((x for x in r.get("scenes", []) if x["id"] == body.get("scene")), None)
+        if not row:
+            raise ValueError("다시 듣기 검사 결과에 없는 장면입니다")
+        st.setdefault("stt_accept", {})[row["id"]] = row["hash"]
+        save_state(slug, st)
+        return {"ok": True}
 
     if action == "save_ref":
         rd = ref_dir(slug); rd.mkdir(exist_ok=True)
