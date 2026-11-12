@@ -15,6 +15,7 @@
 | [8. 프로젝트 이름·삭제](#8-프로젝트-이름삭제-2026-11-04) | 완료 | `app.py` `delete_lecture()` |
 | [9. AI 일러스트 모션 (Higgsfield)](#9-ai-일러스트-모션-higgsfield-2026-11-06) | 구현 · 유료 실행 미검증 | `studio/styles/ai-motion.json` |
 | [10. 내 목소리 화자 (Fish Audio · Qwen)](#10-내-목소리-화자-fish-audio--qwen-2026-11-06) | 구현 · 유료 실행 미검증 | `tools/fish_audio.py`, `tools/narrate.py` |
+| [12. 모션 연출 규칙 (P0-1)](#12-모션-연출-규칙-p0-1-2026-11-12) | 구현 · 실제 제작 미검증 | `.claude/skills/edu-video/references/motion-rules.md`, `app.py` `motion_hint()` |
 | [11. 교훈·문제 해결](#11-교훈문제-해결) | — | — |
 
 ---
@@ -125,3 +126,13 @@
 - Studio 에서 실제 제작 1회: 종이 콜라주(로컬 스티커), AI 일러스트 모션(Higgsfield, 최대 4장 권장), Fish 화자 복제·나레이션.
 - 맥북: `video-skills/` 다시 가져오기, `image-env`·FLUX 설치, 이 PC 설정 입력.
 - 작업 브랜치 `claude/my-video-git-pull-49kwdy` → `main` 병합 여부 결정.
+
+## 12. 모션 연출 규칙 (P0-1) (2026-11-12)
+
+- 배경: 참고 영상 분석([CLAUDE.md](../CLAUDE.md), [조사](research/motion-graphics-prompts.md)) — 품질은 프롬프트 구체성(이징·카메라·타이밍)이 가르고, 기본 결과의 약점은 "카메라 정지 + 장면 연결 없음 = 슬라이드 넘기기".
+- 기존 제작 지시(`prompt_visuals`)와 `style-guide.md` 에는 이징 몇 개만 있고 카메라·연결·읽기 시간 규칙이 없었음. 데모 템플릿은 장면마다 opacity 0 으로 완전히 사라져 전환에 빈 화면이 생김.
+- `references/motion-rules.md` (모든 스타일 공통): 이징 곡선표(용도·길이), 카메라(장면당 1개·전체 4종 이상·`#<id>-cam`·overscan 10%), 장면 연결(관통 요소·매치 컷·빈 프레임 금지·리듬), 글자 유지(한국어 글자 수÷5+1.5초 시작값, 자막 1.8초·타이틀 4초), 이미지 에셋(불규칙 가장자리·overscan), 체크리스트.
+- `app.py` `motion_hint()` 를 edu-video 엔진(`prompt_visuals`)과 스킬 엔진(`prompt_style`) 제작 지시에 추가. 스킬 엔진은 "SKILL.md 가 고정한 안무 우선" 단서, 작업 폴더에서 실행되므로 규칙 파일은 절대 경로 + `--add-dir` 로 읽기 허용.
+- `style-guide.md` 모션 규칙·`SKILL.md` 4장에서 motion-rules 참조, 장면 끝 페이드는 다음 장면과 겹치게. `ai-motion` 은 overscan·관통 요소 전환으로 수정.
+- 검증: 4개 스타일(edu-video·ai-motion·paper-cutout·plush-crew)의 제작 지시에 규칙이 1번씩 들어가는 것 확인. **실제 `claude -p` 제작·렌더는 미실행** — 렌더 결과 수치 확인은 P0-2(렌더 후 자동 검사)에서.
+

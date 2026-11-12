@@ -72,6 +72,7 @@ python3 tools/voice_clone.py mux out/lecture.mp4 <프로젝트폴더>/script.jso
 - 장면 길이는 `script.json`의 `duration`을 그대로 쓰고, 내레이션이 그 요소를 **말하는 순간** 화면에 등장시킨다.
 - 내레이션 `<audio id="vo-<id>" data-start=… data-volume="1">`는 루트 `index.html`에 둔다.
 - 디자인 토큰·타이포·금지 패턴: `references/style-guide.md`.
+- **이징·카메라·장면 연결·글자 유지 시간: `references/motion-rules.md`** (모든 장면에 적용, 끝에 6절 체크리스트로 확인).
 
 ## 5. 검수 → 렌더
 

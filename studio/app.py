@@ -318,6 +318,19 @@ def style_hint(st: dict) -> str:
     return f"\n- 영상 형태: {CATEGORY[style['category']]} '{style['name']}' ({style.get('kind', '')}). {form}.{tail}"
 
 
+MOTION_RULES = ROOT / ".claude/skills/edu-video/references/motion-rules.md"   # absolute: skill styles run in their work dir
+
+
+def motion_hint(skill_owned: bool = False) -> str:
+    """Shared motion-direction rules (easing, camera, scene links, read time) for every style's build prompt."""
+    scope = ("스킬 SKILL.md 가 고정한 안무·카메라·전환은 스킬을 우선하고, 스킬이 정하지 않은 부분에만 적용한다. "
+             if skill_owned else "")
+    return (f"\n\n모션 연출 규칙: 장면을 만들기 전에 {MOTION_RULES} 를 읽고 따른다. {scope}"
+            "핵심: 움직임마다 이징 지정(linear 금지), 장면마다 카메라 움직임 1개·영상 전체 4종 이상, "
+            "영상을 관통하는 연결 요소 1개, 전환 중 빈 화면 금지, 글자는 등장 후 (글자 수÷5+1.5)초 유지. "
+            "끝나면 보고에 관통 요소·카메라 움직임 목록·전환 문법을 한 줄씩 적는다.")
+
+
 def prompt_visuals(slug: str, feedback: dict | None = None) -> str:
     base = f"""edu-video 스킬과 HyperFrames 스킬(/hyperframes:hyperframes)의 Contract 를 따른다.
 작업 폴더: lectures/{slug} (HyperFrames 프로젝트)
@@ -327,6 +340,7 @@ def prompt_visuals(slug: str, feedback: dict | None = None) -> str:
 - 루트 data-duration = manifest total_duration. 장면 하나 = compositions/<id>.html.
 - 스타일: .claude/skills/edu-video/references/style-guide.md, 기준 구현 templates/example-lecture.
 - 끝나면 lectures/{slug} 에서 npx hyperframes check --json 을 실행해 error 를 0개로 만든다."""
+    base += motion_hint()
     if feedback:
         lines = "\n".join(f"- {sid}: {txt}" for sid, txt in feedback.items() if txt.strip())
         base += f"\n\n이미 만든 장면을 아래 피드백대로만 고친다(다른 장면은 건드리지 않는다):\n{lines}"
@@ -470,7 +484,7 @@ def prompt_style(slug: str, st: dict, style: dict, opts: dict, feedback: dict | 
 - 유료 API(FAL, ElevenLabs, ChatCut 등)는 호출하지 않는다. 키도 설정되어 있지 않다.
 - 내용은 이 강의의 원문·기획·대본에서 온다. 스킬 예시의 문구·장면을 그대로 쓰지 않는다.{out_rule}
 - 끝나면 만든 파일과 사람이 확인할 점을 짧게 보고한다."""
-    text += ref_hint(slug)
+    text += motion_hint(skill_owned=True) + ref_hint(slug)
     if feedback:
         lines = "\n".join(f"- {sid}: {txt}" for sid, txt in feedback.items() if txt.strip())
         text += f"\n\n이미 만든 결과를 아래 피드백대로만 고친다(다른 부분은 건드리지 않는다):\n{lines}"
@@ -1032,7 +1046,7 @@ def do_action(slug: str, action: str, body: dict) -> dict:
             return {"job": run_job(slug, "claude-visuals", cmd, ROOT, after=remember_plan)}
         v = style_vars(slug, st, style, opts)
         cmd = claude_cmd(cfg, prompt_style(slug, st, style, opts, fb), bash=fill(style.get("bash", []), v),
-                         add_dirs=[Path(v["skill"]), d])
+                         add_dirs=[Path(v["skill"]), d, MOTION_RULES.parent])
         return {"job": run_job(slug, "claude-visuals", cmd, Path(v["work"]), after=remember_plan, meta={"style": style["id"]})}
 
     if action == "snapshot":
