@@ -61,3 +61,7 @@ lectures/*/style-ref/measure/*.jpg
 lectures/*/assets/music/*
 !lectures/*/assets/music/beats.json
 !lectures/*/assets/music/music.json
+
+# global skill: scripts/ are copied from tools/ by tools/install_global_skill.sh; dist/ holds the .skill package
+skills/motion-video/scripts/
+dist/

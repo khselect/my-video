@@ -110,5 +110,5 @@ lemo-opuscar 에서 더한 후보: 13 자막·글자 읽기 시간 검사, 14 �
 ### 다음 단계 (진행 순서)
 
 1. [x] 미수집 자료 확보: 프롬프트 공유 파일·lemo-opuscar 완료 → [docs/research/motion-graphics-prompts.md](docs/research/motion-graphics-prompts.md) (prompt-motion.com·X 게시물은 네트워크 차단으로 남음)
-2. [ ] 개선 구현: 우선순위 표 순서대로 (P0-1부터)
-3. [ ] 영상 제작 전역 스킬 작성 (위 4단계 워크플로 + 프롬프트·사이트 목록 + 이 저장소 도구 연결)
+2. [x] 개선 구현: P0-1 ~ P2-2 완료 (P3 규칙형 스타일·경로 추천은 보류 — 경로 고르기 표는 전역 스킬에 포함)
+3. [x] 영상 제작 전역 스킬 [skills/motion-video](skills/motion-video/SKILL.md) — 설치 `sh tools/install_global_skill.sh`

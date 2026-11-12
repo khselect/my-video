@@ -21,6 +21,7 @@
 | [15. 효과 사양표·스토리보드 승인 (P1-2)](#15-효과-사양표스토리보드-승인-p1-2-2026-11-12) | 완료 (실제 Claude 호출로 검증) | `app.py` `measure_ref`·`make_storyboard`, `render_version.py` |
 | [16. 음악 비트 동기화 (P2-1)](#16-음악-비트-동기화-p2-1-2026-11-12) | 완료 (합성 음악으로 검증, 실제 음원 미검증) | `tools/beats.py`, `app.py` `beat_hint()` |
 | [17. 나레이션 다시 듣기 검사 (P2-2)](#17-나레이션-다시-듣기-검사-p2-2-2026-11-12) | 구현 · 실제 음성 인식 모델 미검증 | `tools/stt_check.py`, Studio 4단계 |
+| [18. 영상 제작 전역 스킬 motion-video](#18-영상-제작-전역-스킬-motion-video-2026-11-12) | 완료 (헤드리스 시험 8/8) | `skills/motion-video/`, `tools/install_global_skill.sh` |
 | [11. 교훈·문제 해결](#11-교훈문제-해결) | — | — |
 
 ---
@@ -234,4 +235,14 @@
   - espeak-ng 한국어로 만든 장면 음성 5개 + 실제 오류 유형을 흉내 낸 전사(띄어쓰기 차이, 이름 '지우→지후', 문장 뒤 절반 누락): s01·s05 일치, **s02 일치율 97%인데 핵심어 '지우'로 확인**, s04 38% 다름, 캐시·허용 동작.
   - Studio API·화면: 검사 작업, 결과 표, '맞게 들림', 음성 변경 시 재검사 표시와 허용 해제.
   - **이 환경에서는 huggingface.co·OpenAI·Vosk 모델 서버가 막혀 실제 whisper 인식은 돌리지 못함** — 실패 안내 문구만 확인. 맥에서 `<qwen-tts venv>/bin/pip install faster-whisper` 후 첫 실행 때 모델(small 약 460MB)을 받는다.
+
+## 18. 영상 제작 전역 스킬 motion-video (2026-11-12)
+
+참고 영상 분석(CLAUDE.md)과 P0~P2 결과를 다른 프로젝트에서도 쓰도록 전역 스킬로.
+
+- `skills/motion-video/` (원본) → `sh tools/install_global_skill.sh` 가 `~/.claude/skills/motion-video` 로 설치. `--link` 는 저장소 파일에 연결(수정 즉시 반영), `--package` 는 `dist/motion-video.skill`(claude.ai 업로드용).
+  - `scripts/` 는 설치 때 `tools/` 에서 복사(`qa_render.py`·`ref_measure.py`·`beats.py`·`stt_check.py`) — 저장소엔 tools/ 하나만 둔다(gitignore).
+- SKILL.md: 경로 고르기(코드 / 이미지+코드 / 영상 생성 모델), 한 번에 묻기, ① 측정 먼저(ref_measure, beats) ② 효과 사양표·장면표·관통 요소·에셋·합격 조건을 storyboard.md 에 쓰고 **승인 전 멈춤** ③ 제작(motion-rules, `const FX` 상수, 박 맞춤 규칙, 이미지+코드 규칙) ④ 같은 측정 코드로 검수(qa_render·compare·beats check·stt_check, 수정 1라운드) ⑤ 납품·스타일을 스킬로 저장 제안, 저작권·유료 안전. my-video 저장소 안이면 Studio·tools 를 쓰라고 안내.
+- references: `motion-rules.md`(edu-video 와 같은 규칙), `prompts.md`(영상 속 프롬프트 패턴 10종을 구조로 요약 — 원문 저작권 때문에 그대로 옮기지 않음, 규칙형 스타일 6종 한 줄은 출처 표시 인용, 실제 소요시간·크레딧), `tools-and-sites.md`(엔진·에셋·사이트, 측정 지표 계산법과 임계값).
+- 시험(헤드리스 `claude -p`, 저장소 밖 빈 폴더, 레퍼런스 영상 + "이 느낌으로 번아웃 회복 3단계 15초, 계획 먼저"): 스킬이 자동으로 불려 측정 → storyboard.md 작성 → 멈춤. 8개 항목 채점 스킬 있음 8/8, 없음 2/8 (`skills/motion-video/evals/`). 스킬 없음도 계획은 좋았고 차이는 측정 근거·FX 상수·카메라·합격 조건·글자 유지 점검.
 
