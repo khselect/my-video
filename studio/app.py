@@ -321,7 +321,7 @@ lectures/{slug}/source/source.md 를 끝까지 읽고, 장면 대본 lectures/{s
 - 대상: {b.get('audience', '일반 학습자')}
 - 강조할 관점: {b.get('emphasis', '없음')}
 - 목표 길이: 약 {b.get('target_seconds', 60)}초 (장면당 4~9초, 내레이션 40~55자)
-- language "korean", speaker "{b.get('speaker') or load_config()['speaker']}", voice "{b.get('voice') or load_config()['voice']}" 를 최상위에 넣는다.
+- language "korean" 를 최상위에 넣는다 (화자는 4단계 나레이션에서 정하므로 speaker·voice 는 쓰지 않는다).
 - 장면 id 는 s01, s02 ... ; shape 는 style-guide 의 7가지 중 장면마다 다르게.
 - 원문에 없는 숫자는 쓰지 않는다. 영어 고유명사는 내레이션에서 한글 발음으로 적는다.{style_hint(st)}
 scenes.json 파일만 쓰고 끝낸다."""
@@ -1014,6 +1014,8 @@ def lecture_view(slug: str) -> dict:
         "source_preview": src.read_text(encoding="utf-8")[:6000] if src.exists() else "",
         "scenes": read_json(d / "scenes.json"),
         "audio": manifest,
+        "scene_speakers": st.get("scene_speakers") or {},
+        "config": load_config(),
         "snapshots": [p.relative_to(d).as_posix() for p in snaps],
         "renders": renders["versions"],
         "styles": list(styles.values()), "categories": CATEGORY,
@@ -1065,7 +1067,7 @@ def do_action(slug: str, action: str, body: dict) -> dict:
         return {"job": run_job(slug, "extract", [py, str(TOOLS / "extract_source.py"), str(dst), str(d)], ROOT)}
 
     if action == "save_brief":
-        st["brief"] = {k: body.get(k, "") for k in ("one_idea", "audience", "emphasis", "target_seconds", "speaker", "voice")}
+        st["brief"] = {k: body.get(k, "") for k in ("one_idea", "audience", "emphasis", "target_seconds")}   # speaker: 4단계·이 PC 설정
         st["title"] = body.get("title") or st.get("title", slug)
         mark_changed(st, "brief")
         save_state(slug, st)
@@ -1095,9 +1097,13 @@ def do_action(slug: str, action: str, body: dict) -> dict:
             cmd = [py, str(TOOLS / "fish_audio.py"), "--claude", claude_exe(cfg), "narrate", str(d / "scenes.json"),
                    "--out", str(d / "build" / "audio")]
         else:
+            # one source of truth: default speaker / voice profile = 이 PC 설정, per-scene speakers = this project
             cmd = [cfg["qwen_python"] if backend != "silent" else py, str(TOOLS / "narrate.py"), str(d / "scenes.json"),
                    "--out", str(d / "build" / "audio"), "--backend", backend,
-                   "--speaker", b.get("speaker") or cfg["speaker"], "--voice", b.get("voice") or cfg["voice"]]
+                   "--speaker", cfg["speaker"], "--voice", cfg["voice"]]
+            if backend == "customvoice":
+                for sid, spk in (st.get("scene_speakers") or {}).items():
+                    cmd += ["--scene-speaker", f"{sid}={spk}"]
         if body.get("force") is not None:
             cmd += ["--force", *body["force"]]
         st["stages"].setdefault("narration", {})
@@ -1128,6 +1134,22 @@ def do_action(slug: str, action: str, body: dict) -> dict:
         st.setdefault("stt_accept", {})[row["id"]] = row["hash"]
         save_state(slug, st)
         return {"ok": True}
+
+    if action == "set_voice":
+        # 4단계: default speaker / backend (= 이 PC 설정, applies to every project) and per-scene speakers (this project)
+        if "speaker" in body or "narrate_backend" in body:
+            for k in ("speaker", "narrate_backend"):
+                if k in body:
+                    if not re.match(r"^[a-z_]{2,30}$", str(body[k])):
+                        raise ValueError("잘못된 화자/방식")
+                    cfg[k] = body[k]
+            save_config(cfg)
+        if "scene_speakers" in body:
+            ids = set(_scene_ids(slug))
+            st["scene_speakers"] = {sid: spk for sid, spk in (body["scene_speakers"] or {}).items()
+                                    if sid in ids and spk and re.match(r"^[a-z_]{2,30}$", spk) and spk != cfg["speaker"]}
+            save_state(slug, st)
+        return {"ok": True, "config": cfg}
 
     if action == "save_ref":
         rd = ref_dir(slug); rd.mkdir(exist_ok=True)

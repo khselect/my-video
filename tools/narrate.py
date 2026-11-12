@@ -7,6 +7,7 @@ usage
   python tools/narrate.py scenes.json --out build/audio --force              # redo everything
   python tools/narrate.py scenes.json --out build/audio --backend clone --voice me    # my cloned voice
   python tools/narrate.py scenes.json --out build/audio --backend silent    # no model: timing dry run
+  python tools/narrate.py scenes.json --out build/audio --scene-speaker s02=ryan   # one scene in another voice
 
 Backends
   customvoice  Qwen3-TTS CustomVoice model, built-in speaker (default; "speaker" in the JSON, e.g. sohee)
@@ -90,8 +91,13 @@ class Backend:
         self.tts = None
         self.prompt = None
 
-    def settings_key(self) -> str:
-        who = {"customvoice": self.speaker, "clone": self.voice, "silent": "-", "fish": self.fish_voice}[self.kind]
+    def scene_speaker(self, sc: dict) -> str:
+        """CustomVoice speaker for one scene: --scene-speaker > scene "speaker" field > default."""
+        return self.a.scene_speakers.get(sc["id"]) or sc.get("speaker") or self.speaker
+
+    def settings_key(self, sc: dict | None = None) -> str:
+        spk = self.scene_speaker(sc) if sc else self.speaker
+        who = {"customvoice": spk, "clone": self.voice, "silent": "-", "fish": self.fish_voice}[self.kind]
         return f"{self.kind}|{who}|{self.language}"
 
     def load(self) -> None:
@@ -113,7 +119,7 @@ class Backend:
                 sys.exit(f"voice profile {pt} not found: run tools/voice_clone.py enroll first")
             self.prompt = torch.load(pt, weights_only=False)
 
-    def synth(self, text: str, instruct: str | None):
+    def synth(self, text: str, instruct: str | None, speaker: str | None = None):
         if self.kind == "silent":
             secs = max(1.0, len(text.replace(" ", "")) / 7.5)
             return array("h", bytes(int(secs * SR) * 2)), SR
@@ -130,7 +136,7 @@ class Backend:
             return pcm, SR
         self.load()
         if self.kind == "customvoice":
-            wavs, sr = self.tts.generate_custom_voice(text=text, speaker=self.speaker, language=self.language,
+            wavs, sr = self.tts.generate_custom_voice(text=text, speaker=speaker or self.speaker, language=self.language,
                                                       instruct=instruct or None)
         else:
             wavs, sr = self.tts.generate_voice_clone(text=text, language=self.language,
@@ -162,6 +168,8 @@ def main() -> None:
     ap.add_argument("--speaker", help="CustomVoice speaker (default: JSON 'speaker' or sohee)")
     ap.add_argument("--voice", help="clone profile name (default: JSON 'voice' or me)")
     ap.add_argument("--fish-voice", help="Fish Audio voice id (backend fish)")
+    ap.add_argument("--scene-speaker", action="append", default=[], metavar="ID=SPEAKER",
+                    help="CustomVoice speaker for one scene (repeatable); overrides the scene's own 'speaker'")
     ap.add_argument("--language", help="default: JSON 'language' or korean")
     ap.add_argument("--model", help="override model id or local folder")
     ap.add_argument("--device", default="auto", help="auto | cuda:0 | mps | cpu")
@@ -170,6 +178,7 @@ def main() -> None:
     ap.add_argument("--min", type=float, default=3.0, help="minimum scene length in seconds")
     ap.add_argument("--force", nargs="*", metavar="ID", help="regenerate these scene ids (no ids = all)")
     a = ap.parse_args()
+    a.scene_speakers = dict(x.split("=", 1) for x in a.scene_speaker if "=" in x)
 
     script = json.loads(a.scenes.read_text(encoding="utf-8"))
     scenes = script["scenes"]
@@ -187,24 +196,24 @@ def main() -> None:
     old_hash = {s["id"]: s.get("hash") for s in old.get("scenes", [])}
 
     be = Backend(a, script)
-    key = be.settings_key()
     entries, made, skipped = [], 0, 0
     for sc in scenes:
         text = scene_text(sc)
         wav_path = a.out / f"{sc['id']}.wav"
-        h = scene_hash(sc, key)
+        h = scene_hash(sc, be.settings_key(sc))
+        spk = be.scene_speaker(sc) if be.kind == "customvoice" else None
         forced = a.force is not None and (len(a.force) == 0 or sc["id"] in a.force)
         if text and (forced or not wav_path.exists() or old_hash.get(sc["id"]) != h):
             t0 = time.time()
             be.current = (sc["id"], h)
-            samples, sr = be.synth(text, sc.get("instruct"))
+            samples, sr = be.synth(text, sc.get("instruct"), spk)
             if sr != SR:
                 import numpy as np
                 import librosa
                 samples = librosa.resample(np.asarray(samples, dtype=np.float32), orig_sr=sr, target_sr=SR)
             write_wav(wav_path, samples, SR)
             made += 1
-            print(f"  made {sc['id']:<8} {time.time() - t0:5.1f}s  {text[:40]}", flush=True)
+            print(f"  made {sc['id']:<8} {time.time() - t0:5.1f}s  {(spk + ' · ') if spk else ''}{text[:40]}", flush=True)
         elif text:
             skipped += 1
             print(f"  skip {sc['id']:<8} (cached)", flush=True)
@@ -213,7 +222,7 @@ def main() -> None:
             data, _ = read_wav(wav_path)
             voice_seconds = len(data) / SR
         pause = float(sc.get("pause_after", a.pause))
-        entries.append({"id": sc["id"], "file": wav_path.name if text else None, "hash": h if text else None,
+        entries.append({"id": sc["id"], "file": wav_path.name if text else None, "hash": h if text else None, "speaker": spk,
                         "voice_seconds": round(voice_seconds, 3),
                         "duration": round(max(a.min, a.lead + voice_seconds + pause), 3)})
 

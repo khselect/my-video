@@ -75,8 +75,12 @@ def grey_frames(path: Path, fps: float | None = SAMPLE_FPS, start: float | None 
     if dur is not None:
         cmd += ["-t", str(dur)]
     vf = ([f"fps={fps}"] if fps else []) + [f"scale={w}:{h}:flags=area", "format=rgb24" if color else "format=gray"]
-    cmd += ["-i", str(path), "-vf", ",".join(vf), "-vsync", "passthrough", "-f", "rawvideo", "-"]
-    raw = subprocess.run(cmd, capture_output=True).stdout
+    # -fps_mode (ffmpeg >= 5.1); the old -vsync option was removed in ffmpeg 8+ and made every read return 0 frames
+    cmd += ["-i", str(path), "-vf", ",".join(vf), "-fps_mode", "passthrough", "-f", "rawvideo", "-"]
+    p = subprocess.run(cmd, capture_output=True)
+    if p.returncode != 0:   # never let a failed read pass as "no blank / no freeze"
+        raise RuntimeError(f"ffmpeg could not read frames from {path}: {p.stderr.decode(errors='replace').strip()[-300:]}")
+    raw = p.stdout
     n = len(raw) // (w * h * ch)
     shape = (n, h, w, 3) if color else (n, h, w)
     return np.frombuffer(raw[: n * w * h * ch], dtype=np.uint8).reshape(shape).astype(np.float32)
