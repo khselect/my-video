@@ -3,38 +3,69 @@
     @font-face { font-family: "Pretendard"; font-weight: 700; src: url("assets/fonts/Pretendard-Bold.woff2") format("woff2"); }
     @font-face { font-family: "Pretendard"; font-weight: 900; src: url("assets/fonts/Pretendard-Black.woff2") format("woff2"); }
     #root { position: absolute; inset: 0; font-family: "Pretendard"; color: #f4f1ea; }
-    #s04-axis { position: absolute; left: 200px; top: 640px; width: 1520px; height: 8px; border-radius: 4px; background: linear-gradient(90deg, #ff6b6b, #8a93b8, #4fd1c5); transform-origin: left center; }
-    .s04-pin { position: absolute; top: 300px; width: 380px; text-align: center; opacity: 0; }
-    #s04-p1 { left: 260px; } #s04-p2 { left: 1280px; }
-    .s04-doorwrap { width: 160px; height: 260px; margin: 0 auto 28px; perspective: 800px; position: relative; border: 3px solid #26315e; border-radius: 8px; background: #070a16; }
-    .s04-door { position: absolute; left: 0; top: 0; width: 150px; height: 254px; transform-origin: left center; border-radius: 4px; }
-    #s04-door1 { background: #ff6b6b; }
-    #s04-door2 { background: #4fd1c5; }
-    .s04-pin h3 { font-size: 72px; font-weight: 900; }
+    /* camera: parallax — far layer moves 0.5x, near layer (axis, doors, dot) 1x; both overscanned */
+    .s04-layer { position: absolute; left: -96px; top: 0; width: 2112px; height: 1080px; }
+    .s04-far { position: absolute; border-radius: 50%; background: #26315e; }
+    #s04-axis, #s04-axis-lit { position: absolute; left: 296px; top: 657px; width: 1520px; height: 6px; border-radius: 3px; transform-origin: 0 50%; }
+    #s04-axis { background: linear-gradient(90deg, #26315e 0%, #8a93b8 60%, #ffb547 100%); }
+    #s04-axis-lit { left: 816px; width: 660px; background: #ffb547; box-shadow: 0 0 18px rgba(255, 181, 71, 0.6); }
+    .s04-door { position: absolute; top: 280px; width: 260px; height: 377px; }
+    #s04-closed { left: 496px; }
+    #s04-closed-leaf { position: absolute; inset: 0; border-radius: 14px 14px 0 0; background: #121a36; border: 4px solid #26315e; }
+    #s04-closed-knob { position: absolute; left: 214px; top: 250px; width: 20px; height: 20px; border-radius: 50%; background: #8a93b8; }
+    #s04-no { position: absolute; left: 0; top: 130px; width: 260px; text-align: center; font-size: 76px; font-weight: 900; color: #8a93b8; }
+    #s04-open { left: 1346px; }
+    #s04-frame { position: absolute; left: -8px; top: -8px; width: 276px; height: 385px; border-radius: 18px 18px 0 0; border: 8px solid #f4f1ea; border-bottom: none; }
+    #s04-glow { position: absolute; inset: 0; border-radius: 12px 12px 0 0; background: radial-gradient(220px 300px at 50% 85%, #ffd58a 0%, #ffb547 55%, #d98a1e 100%); }
+    #s04-yet { position: absolute; left: 0; top: 120px; width: 260px; text-align: center; font-size: 92px; font-weight: 900; color: #0b1020; }
+    #s04-leaf { position: absolute; inset: 0; border-radius: 12px 12px 0 0; background: #121a36; border: 4px solid #26315e; transform-origin: 0 50%; }
   </style>
   <div id="root" data-composition-id="s04" data-width="1920" data-height="1080">
-    <div id="s04-axis"></div>
-    <div id="s04-p1" class="s04-pin">
-      <div class="s04-doorwrap"><div id="s04-door1" class="s04-door"></div></div>
-      <h3 style="color:#ff6b6b">못 해</h3>
+    <div id="s04-far" class="s04-layer">
+      <div class="s04-far" style="left:180px;top:170px;width:22px;height:22px"></div>
+      <div class="s04-far" style="left:420px;top:880px;width:14px;height:14px"></div>
+      <div class="s04-far" style="left:760px;top:140px;width:30px;height:30px"></div>
+      <div class="s04-far" style="left:980px;top:820px;width:18px;height:18px"></div>
+      <div class="s04-far" style="left:1120px;top:230px;width:12px;height:12px"></div>
+      <div class="s04-far" style="left:1700px;top:150px;width:26px;height:26px"></div>
+      <div class="s04-far" style="left:1880px;top:860px;width:16px;height:16px"></div>
+      <div class="s04-far" style="left:2010px;top:380px;width:20px;height:20px"></div>
     </div>
-    <div id="s04-p2" class="s04-pin">
-      <div class="s04-doorwrap"><div id="s04-door2" class="s04-door"></div></div>
-      <h3 style="color:#4fd1c5">아직</h3>
+    <div id="s04-near" class="s04-layer">
+      <div id="s04-axis"></div>
+      <div id="s04-axis-lit"></div>
+      <div id="s04-closed" class="s04-door">
+        <div id="s04-closed-leaf"><div id="s04-closed-knob"></div><div id="s04-no">못 해</div></div>
+      </div>
+      <div id="s04-open" class="s04-door">
+        <div id="s04-glow"></div>
+        <div id="s04-leaf"></div>
+        <div id="s04-yet">아직</div>
+        <div id="s04-frame"></div>
+      </div>
     </div>
   </div>
   <script>
     const tl = gsap.timeline({ paused: true });
-    tl.fromTo("#s04-axis", { scaleX: 0 }, { scaleX: 1, duration: 0.8, ease: "power3.inOut" }, 0.3);
-    // "못 해라는 말은 문을 닫지만" — the left door slams shut as the pin lands, 0.3s
-    tl.fromTo("#s04-p1", { opacity: 0, y: -40 }, { opacity: 1, y: 0, duration: 0.45, ease: "back.out(1.8)" }, 0.3);
-    tl.fromTo("#s04-door1", { rotationY: 50 }, { rotationY: 0, duration: 0.4, ease: "power3.in" }, 0.5);
-    // "아직이라는 말은 다음을 기대하게" — the right door swings open as its pin lands, 3.77s
-    tl.fromTo("#s04-p2", { opacity: 0, y: -40 }, { opacity: 1, y: 0, duration: 0.45, ease: "back.out(1.8)" }, 3.77);
-    tl.fromTo("#s04-door2", { rotationY: 0 }, { rotationY: 65, duration: 0.6, ease: "power3.out" }, 3.95);
-    // a quiet breath on the open door so the long hold still reads as alive
-    tl.to("#s04-p2", { y: -10, duration: 0.5, yoyo: true, repeat: 1, ease: "sine.inOut" }, 6.5);
-    tl.to("#root", { opacity: 0, duration: 0.3, ease: "power2.in" }, 9.01);
+    // entry happens behind the root wipe band (gone by 0.3s)
+    tl.fromTo("#s04-axis", { scaleX: 0 }, { scaleX: 1, duration: 0.8, ease: "power2.inOut" }, 0.3);
+    tl.fromTo("#s04-closed", { opacity: 0, y: 40 }, { opacity: 1, y: 0, duration: 0.5, ease: "power3.out" }, 0.35);
+    tl.fromTo("#s04-no", { opacity: 0, y: 16 }, { opacity: 1, y: 0, duration: 0.45, ease: "power3.out" }, 0.45);
+    // camera: parallax (near layer mirrored on the root #thread-pan: 0 -> -100, 8.6s, sine.inOut)
+    tl.fromTo("#s04-far", { x: 0 }, { x: -50, duration: 8.6, ease: "sine.inOut" }, 0.32);
+    tl.fromTo("#s04-near", { x: 0 }, { x: -100, duration: 8.6, ease: "sine.inOut" }, 0.32);
+    // "문을 닫지만": the door shuts with a thud as the dot bumps into it
+    tl.fromTo("#s04-closed-leaf", { scale: 1 }, { scale: 0.96, duration: 0.16, ease: "power2.out", yoyo: true, repeat: 1, immediateRender: false }, 2.25);
+    tl.fromTo("#s04-closed-knob", { backgroundColor: "#8a93b8" }, { backgroundColor: "#ff6b6b", duration: 0.3, ease: "power2.out" }, 2.3);
+    // "아직이라는 말은": the second door appears and swings open onto the warm light
+    tl.fromTo("#s04-open", { opacity: 0, y: 40 }, { opacity: 1, y: 0, duration: 0.5, ease: "power3.out" }, 3.9);
+    tl.fromTo("#s04-leaf", { rotationY: 0, transformPerspective: 900 }, { rotationY: -112, transformPerspective: 900, duration: 0.9, ease: "power3.inOut" }, 4.1);
+    tl.fromTo("#s04-yet", { opacity: 0, scale: 0.6 }, { opacity: 1, scale: 1, duration: 0.45, ease: "back.out(2)" }, 4.5);
+    // "다음을 기대하게": the dot rolls to the doorway (root), the axis lights 0.08s behind it
+    tl.fromTo("#s04-axis-lit", { scaleX: 0 }, { scaleX: 1, duration: 1.0, ease: "power2.inOut" }, 5.58);
+    // 6.6 - 8.9: breathing hold
+    // mask transition: iris closes on the dot in the doorway (1380 - 100 parallax = 1280, 660)
+    tl.fromTo("#root", { clipPath: "circle(1500px at 1280px 660px)" }, { clipPath: "circle(30px at 1280px 660px)", duration: 0.44, ease: "power2.in", immediateRender: false }, 8.92);
     window.__timelines["s04"] = tl;
   </script>
 </template>

@@ -3,54 +3,72 @@
     @font-face { font-family: "Pretendard"; font-weight: 700; src: url("assets/fonts/Pretendard-Bold.woff2") format("woff2"); }
     @font-face { font-family: "Pretendard"; font-weight: 900; src: url("assets/fonts/Pretendard-Black.woff2") format("woff2"); }
     #root { position: absolute; inset: 0; font-family: "Pretendard"; color: #f4f1ea; }
-    #s03-title { position: absolute; left: 200px; top: 150px; font-size: 76px; font-weight: 900; opacity: 0; }
-    #s03-title-em { font-style: normal; color: #ffb547; opacity: 0; display: block; }
-    .s03-chip { position: absolute; left: 260px; width: 150px; height: 150px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 44px; font-weight: 900; color: #0b1020; opacity: 0; }
-    #s03-chip1 { top: 780px; background: #ffb547; }
-    #s03-chip2 { top: 620px; background: #4fd1c5; }
-    #s03-chip3 { top: 460px; background: #ff6b6b; }
-    #s03-counter { position: absolute; left: 420px; top: 360px; font-size: 140px; font-weight: 900; color: #ffb547; opacity: 0; }
-    #s03-counter-label { position: absolute; left: 420px; top: 540px; font-size: 32px; font-weight: 700; color: #8a93b8; opacity: 0; }
-    #s03-frame { position: absolute; left: 1080px; top: 300px; width: 560px; height: 480px; border-radius: 24px; background: #121a36; border: 2px solid #26315e; opacity: 0; }
-    #s03-frame svg { position: absolute; inset: 0; }
+    /* camera (10% overscan): zoom-through entry anchored on the dot (550,540), then a slow pan x 0 -> -90 */
+    #s03-cam { position: absolute; left: -96px; top: -54px; width: 2112px; height: 1188px; transform-origin: 646px 594px; }
+    #s03-inner { position: absolute; left: 96px; top: 54px; width: 1920px; height: 1080px; }
+    #s03-ground { position: absolute; left: 230px; top: 836px; width: 640px; height: 6px; border-radius: 3px; background: #26315e; }
+    /* dot grid: pitch 56, dot 42, trunk base (col 5, row 0) = 550,800 = where the root dot lands */
+    .s03-dot { position: absolute; width: 42px; height: 42px; border-radius: 50%; background: #8a93b8; opacity: 0; }
+    .c1 { left: 305px; } .c2 { left: 361px; } .c3 { left: 417px; } .c4 { left: 473px; } .c5 { left: 529px; }
+    .c6 { left: 585px; } .c7 { left: 641px; } .c8 { left: 697px; } .c9 { left: 753px; }
+    .s03-r0 { top: 779px; } .s03-r1 { top: 723px; } .s03-r2 { top: 667px; } .s03-r3 { top: 611px; } .s03-r4 { top: 555px; }
+    .s03-r5 { top: 499px; } .s03-r6 { top: 443px; } .s03-r7 { top: 387px; } .s03-r8 { top: 331px; }
+    #s03-l1 { position: absolute; left: 1060px; top: 330px; width: 680px; font-size: 56px; font-weight: 700; color: #8a93b8; opacity: 0; }
+    #s03-l2 { position: absolute; left: 1060px; top: 420px; width: 680px; font-size: 92px; font-weight: 900; color: #ffb547; opacity: 0; }
+    #s03-count { position: absolute; left: 1060px; top: 600px; width: 600px; font-size: 40px; font-weight: 700; color: #8a93b8; opacity: 0; }
+    #s03-num { display: inline-block; min-width: 110px; font-size: 88px; font-weight: 900; color: #f4f1ea; font-variant-numeric: tabular-nums; }
   </style>
   <div id="root" data-composition-id="s03" data-width="1920" data-height="1080">
-    <div id="s03-title">점이 쌓여,<br /><em id="s03-title-em">그림이 된다</em></div>
-    <div id="s03-chip1" class="s03-chip">점</div>
-    <div id="s03-chip2" class="s03-chip">점</div>
-    <div id="s03-chip3" class="s03-chip">점</div>
-    <div id="s03-counter">0</div>
-    <div id="s03-counter-label">개의 점</div>
-    <div id="s03-frame">
-      <svg viewBox="0 0 560 480">
-        <circle cx="280" cy="240" r="46" fill="#4fd1c5" />
-        <circle cx="280" cy="140" r="30" fill="#ffb547" />
-        <circle cx="368" cy="192" r="30" fill="#ff6b6b" />
-        <circle cx="368" cy="288" r="30" fill="#ffb547" />
-        <circle cx="280" cy="340" r="30" fill="#ff6b6b" />
-        <circle cx="192" cy="288" r="30" fill="#ffb547" />
-        <circle cx="192" cy="192" r="30" fill="#ff6b6b" />
-      </svg>
-    </div>
+    <div id="s03-cam"><div id="s03-inner">
+      <div id="s03-ground"></div>
+      <!-- row 0: ground (col 5 is the root #thread-dot) -->
+      <div id="s03-d0-2" class="s03-dot s03-r0 c2 s03-g"></div><div id="s03-d0-3" class="s03-dot s03-r0 c3 s03-g"></div><div id="s03-d0-4" class="s03-dot s03-r0 c4 s03-g"></div>
+      <div id="s03-d0-6" class="s03-dot s03-r0 c6 s03-g"></div><div id="s03-d0-7" class="s03-dot s03-r0 c7 s03-g"></div><div id="s03-d0-8" class="s03-dot s03-r0 c8 s03-g"></div>
+      <!-- rows 1-2: trunk -->
+      <div id="s03-d1-4" class="s03-dot s03-r1 c4 s03-t"></div><div id="s03-d1-5" class="s03-dot s03-r1 c5 s03-t"></div><div id="s03-d1-6" class="s03-dot s03-r1 c6 s03-t"></div>
+      <div id="s03-d2-4" class="s03-dot s03-r2 c4 s03-t"></div><div id="s03-d2-5" class="s03-dot s03-r2 c5 s03-t"></div><div id="s03-d2-6" class="s03-dot s03-r2 c6 s03-t"></div>
+      <!-- rows 3-8: canopy -->
+      <div id="s03-d3-2" class="s03-dot s03-r3 c2 s03-k"></div><div id="s03-d3-3" class="s03-dot s03-r3 c3 s03-k"></div><div id="s03-d3-4" class="s03-dot s03-r3 c4 s03-k"></div><div id="s03-d3-5" class="s03-dot s03-r3 c5 s03-k"></div>
+      <div id="s03-d3-6" class="s03-dot s03-r3 c6 s03-f"></div><div id="s03-d3-7" class="s03-dot s03-r3 c7 s03-k"></div><div id="s03-d3-8" class="s03-dot s03-r3 c8 s03-k"></div>
+      <div id="s03-d4-1" class="s03-dot s03-r4 c1 s03-k"></div><div id="s03-d4-2" class="s03-dot s03-r4 c2 s03-k"></div><div id="s03-d4-3" class="s03-dot s03-r4 c3 s03-f"></div><div id="s03-d4-4" class="s03-dot s03-r4 c4 s03-k"></div><div id="s03-d4-5" class="s03-dot s03-r4 c5 s03-k"></div>
+      <div id="s03-d4-6" class="s03-dot s03-r4 c6 s03-k"></div><div id="s03-d4-7" class="s03-dot s03-r4 c7 s03-k"></div><div id="s03-d4-8" class="s03-dot s03-r4 c8 s03-k"></div><div id="s03-d4-9" class="s03-dot s03-r4 c9 s03-k"></div>
+      <div id="s03-d5-1" class="s03-dot s03-r5 c1 s03-k"></div><div id="s03-d5-2" class="s03-dot s03-r5 c2 s03-k"></div><div id="s03-d5-3" class="s03-dot s03-r5 c3 s03-k"></div><div id="s03-d5-4" class="s03-dot s03-r5 c4 s03-k"></div><div id="s03-d5-5" class="s03-dot s03-r5 c5 s03-k"></div>
+      <div id="s03-d5-6" class="s03-dot s03-r5 c6 s03-k"></div><div id="s03-d5-7" class="s03-dot s03-r5 c7 s03-f"></div><div id="s03-d5-8" class="s03-dot s03-r5 c8 s03-k"></div><div id="s03-d5-9" class="s03-dot s03-r5 c9 s03-k"></div>
+      <div id="s03-d6-2" class="s03-dot s03-r6 c2 s03-k"></div><div id="s03-d6-3" class="s03-dot s03-r6 c3 s03-k"></div><div id="s03-d6-4" class="s03-dot s03-r6 c4 s03-k"></div><div id="s03-d6-5" class="s03-dot s03-r6 c5 s03-f"></div>
+      <div id="s03-d6-6" class="s03-dot s03-r6 c6 s03-k"></div><div id="s03-d6-7" class="s03-dot s03-r6 c7 s03-k"></div><div id="s03-d6-8" class="s03-dot s03-r6 c8 s03-k"></div>
+      <div id="s03-d7-3" class="s03-dot s03-r7 c3 s03-k"></div><div id="s03-d7-4" class="s03-dot s03-r7 c4 s03-k"></div><div id="s03-d7-5" class="s03-dot s03-r7 c5 s03-k"></div><div id="s03-d7-6" class="s03-dot s03-r7 c6 s03-k"></div><div id="s03-d7-7" class="s03-dot s03-r7 c7 s03-k"></div>
+      <div id="s03-d8-4" class="s03-dot s03-r8 c4 s03-k"></div><div id="s03-d8-5" class="s03-dot s03-r8 c5 s03-k"></div><div id="s03-d8-6" class="s03-dot s03-r8 c6 s03-k"></div>
+      <div id="s03-l1">점이 쌓여,</div>
+      <div id="s03-l2">그림이 된다</div>
+      <div id="s03-count"><span id="s03-num">1</span> 개의 점</div>
+    </div></div>
   </div>
   <script>
     const tl = gsap.timeline({ paused: true });
-    tl.fromTo("#s03-title", { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.45, ease: "power3.out" }, 0.3);
-    tl.fromTo("#s03-counter", { opacity: 0 }, { opacity: 1, duration: 0.3 }, 0.3);
-    tl.fromTo("#s03-counter-label", { opacity: 0 }, { opacity: 1, duration: 0.3 }, 0.3);
-    // "하나씩 더해 가며" — three dots drop within the first clause, 0.3s to 3.71s
-    const counter = { v: 0 };
-    [0.5, 1.7, 2.9].forEach((at, i) => {
-      tl.fromTo("#s03-chip" + (i + 1), { opacity: 0, y: -80 }, { opacity: 1, y: 0, duration: 0.45, ease: "bounce.out" }, at);
-      tl.to(counter, {
-        v: i + 1, duration: 0.3, ease: "power2.out",
-        onUpdate: () => { document.querySelector("#s03-counter").textContent = Math.round(counter.v); },
-      }, at + 0.1);
-    });
-    // "자기만의 멋진 그림을 완성해 갔어요" — the dots resolve into a finished picture, 3.71s
-    tl.fromTo("#s03-frame", { opacity: 0, scale: 0.85 }, { opacity: 1, scale: 1, duration: 0.5, ease: "back.out(1.6)" }, 3.71);
-    tl.fromTo("#s03-title-em", { opacity: 0 }, { opacity: 1, duration: 0.4, ease: "power3.out" }, 3.71);
-    tl.to("#root", { opacity: 0, duration: 0.3, ease: "power2.in" }, 7.09);
+    // zoom-through landing: the scene grows out of the dot (root dot shrinks 6 -> 1 at the same time)
+    tl.fromTo("#s03-cam", { scale: 0.5, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.6, ease: "expo.out" }, 0);
+    // camera: pan, mirrored on the root #thread-pan (same 6.54s, sine.inOut)
+    tl.fromTo("#s03-cam", { x: 0 }, { x: -90, duration: 6.54, ease: "sine.inOut", immediateRender: false }, 0.6);
+    tl.fromTo("#s03-ground", { scaleX: 0 }, { scaleX: 1, duration: 0.6, ease: "power2.inOut" }, 0.6);
+    // "점을 하나씩 더해 가며": rows drop and stack from the ground up; the count follows each row
+    const cum = [7, 10, 13, 20, 29, 38, 45, 50, 53];
+    const counter = { v: 1 };
+    const num = () => { document.querySelector("#s03-num").textContent = Math.round(counter.v); };
+    tl.fromTo("#s03-count", { opacity: 0, y: 16 }, { opacity: 1, y: 0, duration: 0.4, ease: "power3.out" }, 1.2);
+    for (let r = 0; r < 9; r++) {
+      const at = 1.3 + r * 0.4;
+      tl.fromTo(".s03-r" + r, { opacity: 0, y: -70 }, { opacity: 1, y: 0, duration: 0.55, ease: "bounce.out", stagger: 0.03 }, at);
+      tl.fromTo(counter, { v: r === 0 ? 1 : cum[r - 1] }, { v: cum[r], duration: 0.35, ease: "none", onUpdate: num, immediateRender: false }, at + 0.2);
+    }
+    tl.fromTo("#s03-l1", { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.5, ease: "power3.out" }, 1.5);
+    tl.fromTo("#s03-l2", { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.5, ease: "power3.out" }, 4.1);
+    // "그림을 완성해": dots take their colours bottom to top and swell so they read as one picture
+    tl.fromTo(".s03-g", { backgroundColor: "#8a93b8", scale: 1 }, { backgroundColor: "#4a5580", scale: 1.22, duration: 0.45, ease: "back.out(1.8)", stagger: 0.02, immediateRender: false }, 5.3);
+    tl.fromTo(".s03-t", { backgroundColor: "#8a93b8", scale: 1 }, { backgroundColor: "#f4f1ea", scale: 1.22, duration: 0.45, ease: "back.out(1.8)", stagger: 0.02, immediateRender: false }, 5.4);
+    tl.fromTo(".s03-k", { backgroundColor: "#8a93b8", scale: 1 }, { backgroundColor: "#4fd1c5", scale: 1.22, duration: 0.45, ease: "back.out(1.8)", stagger: 0.012, immediateRender: false }, 5.5);
+    tl.fromTo(".s03-f", { backgroundColor: "#8a93b8", scale: 1 }, { backgroundColor: "#ff6b6b", scale: 1.3, duration: 0.45, ease: "back.out(2.2)", stagger: 0.06, immediateRender: false }, 5.9);
+    tl.fromTo("#s03-num", { color: "#f4f1ea" }, { color: "#4fd1c5", duration: 0.4, ease: "power2.out", immediateRender: false }, 5.5);
+    // exit: covered by the root wipe band (19.78-20.38 root time); no fade, no empty frame
     window.__timelines["s03"] = tl;
   </script>
 </template>

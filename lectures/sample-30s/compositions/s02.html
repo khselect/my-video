@@ -3,43 +3,74 @@
     @font-face { font-family: "Pretendard"; font-weight: 700; src: url("assets/fonts/Pretendard-Bold.woff2") format("woff2"); }
     @font-face { font-family: "Pretendard"; font-weight: 900; src: url("assets/fonts/Pretendard-Black.woff2") format("woff2"); }
     #root { position: absolute; inset: 0; font-family: "Pretendard"; color: #f4f1ea; }
-    #s02-title { position: absolute; left: 200px; top: 110px; font-size: 76px; font-weight: 900; opacity: 0; }
-    #s02-title-em { font-style: normal; color: #ffb547; opacity: 0; display: block; }
-    #s02-svg { position: absolute; left: 560px; top: 225px; width: 800px; height: 760px; }
-    #s02-core { position: absolute; left: 860px; top: 515px; width: 200px; height: 200px; border-radius: 50%; background: #ffb547; color: #0b1020; display: flex; align-items: center; justify-content: center; font-size: 48px; font-weight: 900; opacity: 0; }
-    .s02-node { position: absolute; width: 300px; text-align: center; padding: 26px 0; border-radius: 22px; background: #121a36; border: 2px solid #26315e; opacity: 0; }
-    .s02-node h3 { font-size: 38px; font-weight: 900; }
-    .s02-node p { font-size: 28px; color: #8a93b8; font-weight: 700; margin-top: 6px; }
-    #s02-n1 { left: 810px; top: 255px; }
-    #s02-n2 { left: 1190px; top: 580px; }
-    #s02-n3 { left: 430px; top: 580px; }
+    /* camera: key-zoom anchored on the dot / ring centre (550,540) */
+    #s02-cam { position: absolute; inset: 0; transform-origin: 550px 540px; }
+    /* match-cut: same box as the s01 paper at the end of its push-in (scale 1.1) */
+    #s02-ghost { position: absolute; left: 220px; top: 220px; width: 660px; height: 640px; border-radius: 20px; background: #f4f1ea; }
+    #s02-svg { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; }
+    .s02-arc { fill: none; stroke: #4fd1c5; stroke-width: 8; stroke-linecap: round; stroke-dasharray: 628 1885; }
+    #s02-orbit { position: absolute; left: 0; top: 0; width: 1100px; height: 1080px; transform-origin: 550px 540px; opacity: 0; }
+    #s02-spark { position: absolute; left: 536px; top: 226px; width: 28px; height: 28px; border-radius: 50%; background: #4fd1c5; box-shadow: 0 0 22px #4fd1c5; }
+    .s02-node { position: absolute; width: 180px; height: 150px; margin: -75px 0 0 -90px; border-radius: 26px; background: #121a36; border: 3px solid #26315e; opacity: 0; }
+    .s02-node svg { position: absolute; inset: 0; width: 180px; height: 150px; }
+    #s02-n1 { left: 550px; top: 240px; }
+    #s02-n2 { left: 810px; top: 690px; }
+    #s02-n3 { left: 290px; top: 690px; }
+    #s02-l1 { position: absolute; left: 1020px; top: 400px; width: 680px; font-size: 56px; font-weight: 700; color: #8a93b8; opacity: 0; }
+    #s02-l2 { position: absolute; left: 1020px; top: 490px; width: 680px; font-size: 92px; font-weight: 900; color: #ffb547; opacity: 0; }
   </style>
   <div id="root" data-composition-id="s02" data-width="1920" data-height="1080">
-    <div id="s02-title">그림 말고,<br /><em id="s02-title-em">점 하나만</em></div>
-    <svg id="s02-svg" viewBox="0 0 800 760">
-      <circle id="s02-ring" cx="400" cy="390" r="300" fill="none" stroke="#4fd1c5" stroke-width="6" stroke-linecap="round" stroke-dasharray="1885" stroke-dashoffset="1885" transform="rotate(-90 400 390)" />
-    </svg>
-    <div id="s02-core">지우</div>
-    <div id="s02-n1" class="s02-node"><h3>선생님</h3><p>&ldquo;점 하나만 찍어 볼래?&rdquo;</p></div>
-    <div id="s02-n2" class="s02-node"><h3>연필 쥔 손</h3><p>점을 찍어요</p></div>
-    <div id="s02-n3" class="s02-node"><h3>작은 점</h3><p>도화지 위에</p></div>
+    <div id="s02-cam">
+      <div id="s02-ghost"></div>
+      <svg id="s02-svg" viewBox="0 0 1920 1080">
+        <!-- three thirds of the ring, each drawn when its cell appears -->
+        <circle id="s02-a1" class="s02-arc" cx="550" cy="540" r="300" stroke-dashoffset="628" transform="rotate(-90 550 540)" />
+        <circle id="s02-a2" class="s02-arc" cx="550" cy="540" r="300" stroke-dashoffset="628" transform="rotate(30 550 540)" />
+        <circle id="s02-a3" class="s02-arc" cx="550" cy="540" r="300" stroke-dashoffset="628" transform="rotate(150 550 540)" />
+      </svg>
+      <div id="s02-orbit"><div id="s02-spark"></div></div>
+      <!-- cell 1: teacher's speech bubble with one dot in it -->
+      <div id="s02-n1" class="s02-node">
+        <svg viewBox="0 0 180 150"><path d="M 40 36 H 140 Q 156 36 156 52 V 92 Q 156 108 140 108 H 84 L 60 128 L 64 108 H 40 Q 24 108 24 92 V 52 Q 24 36 40 36 Z" fill="#f4f1ea" /><circle cx="90" cy="72" r="10" fill="#0b1020" /></svg>
+      </div>
+      <!-- cell 2: a hand holding the pencil, tip on the paper -->
+      <div id="s02-n2" class="s02-node">
+        <svg viewBox="0 0 180 150"><rect x="30" y="112" width="120" height="14" rx="7" fill="#f4f1ea" /><g transform="rotate(30 100 70)"><rect x="90" y="10" width="20" height="80" fill="#ffb547" /><polygon points="90,90 110,90 100,112" fill="#e8d9bd" /></g><ellipse cx="112" cy="62" rx="30" ry="24" fill="#f2c9a0" /><circle cx="86" cy="112" r="6" fill="#0b1020" /></svg>
+      </div>
+      <!-- cell 3: the small dot on the paper -->
+      <div id="s02-n3" class="s02-node">
+        <svg viewBox="0 0 180 150"><rect x="40" y="25" width="100" height="100" rx="10" fill="#f4f1ea" /><circle cx="90" cy="75" r="9" fill="#0b1020" /></svg>
+      </div>
+      <div id="s02-l1">그림 말고,</div>
+      <div id="s02-l2">점 하나만</div>
+    </div>
   </div>
   <script>
     const tl = gsap.timeline({ paused: true });
-    tl.fromTo("#s02-title", { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.45, ease: "power3.out" }, 0.3);
-    tl.fromTo("#s02-title-em", { opacity: 0 }, { opacity: 1, duration: 0.4, ease: "power3.out" }, 2.66);
-    tl.fromTo("#s02-core", { opacity: 0, scale: 0.6 }, { opacity: 1, scale: 1, duration: 0.5, ease: "back.out(2)" }, 0.3);
-    // three clauses: 선생님 말풍선 0.3s, 손이 점을 찍음 2.66s, 작은 점 4.33s
-    const nodes = ["#s02-n1", "#s02-n2", "#s02-n3"];
+    // match-cut: the s01 paper (at push-in scale 1.1) folds into the ring around the dot
+    tl.fromTo("#s02-ghost", { scale: 1.1, borderRadius: "20px", opacity: 1 }, { scaleX: 0.909, scaleY: 0.9375, borderRadius: "50%", opacity: 0, duration: 0.6, ease: "power2.inOut" }, 0);
+    // three cells — 선생님 0.3s, 점 찍는 손 2.66s, 작은 점 4.33s; each draws its third of the ring
+    const cells = ["#s02-n1", "#s02-n2", "#s02-n3"];
+    const arcs = ["#s02-a1", "#s02-a2", "#s02-a3"];
     const onsets = [0.3, 2.66, 4.33];
-    nodes.forEach((n, i) => {
+    cells.forEach((c, i) => {
       const at = onsets[i];
-      tl.to("#s02-ring", { attr: { "stroke-dashoffset": 1885 - (1885 / 3) * (i + 1) }, duration: 0.5, ease: "power2.inOut" }, at);
-      tl.fromTo(n, { opacity: 0, y: 16 }, { opacity: 1, y: 0, duration: 0.4, ease: "power3.out" }, at);
-      tl.fromTo(n, { borderColor: "#ffb547" }, { borderColor: "#26315e", duration: 0.8 }, at + 0.2);
+      tl.fromTo(c, { opacity: 0, scale: 0.7 }, { opacity: 1, scale: 1, duration: 0.45, ease: "back.out(2)" }, at);
+      tl.fromTo(c, { borderColor: "#ffb547" }, { borderColor: "#26315e", duration: 0.8, ease: "power2.out" }, at + 0.3);
+      tl.fromTo(arcs[i], { attr: { "stroke-dashoffset": 628 } }, { attr: { "stroke-dashoffset": 0 }, duration: 0.7, ease: "power2.inOut" }, at + 0.1);
     });
-    tl.to("#s02-core", { scale: 1.12, duration: 0.25, yoyo: true, repeat: 1, ease: "power2.out" }, 4.9);
-    tl.to("#root", { opacity: 0, duration: 0.3, ease: "power2.in" }, 5.73);
+    // "그림을" / "점 하나만"
+    tl.fromTo("#s02-l1", { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.5, ease: "power3.out" }, 1.0);
+    tl.fromTo("#s02-l2", { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.5, ease: "power3.out" }, 2.66);
+    // camera: key-zoom on the dot while "점 하나만" is said, then back out for the next cells
+    tl.fromTo("#s02-cam", { scale: 1 }, { scale: 1.2, duration: 0.7, ease: "power2.inOut" }, 2.66);
+    tl.fromTo("#s02-cam", { scale: 1.2 }, { scale: 1, duration: 0.7, ease: "power2.inOut", immediateRender: false }, 4.2);
+    // the cycle runs once: a spark travels round the closed ring
+    tl.fromTo("#s02-orbit", { opacity: 0 }, { opacity: 1, duration: 0.2, ease: "power2.out" }, 4.95);
+    tl.fromTo("#s02-orbit", { rotation: 0 }, { rotation: 360, duration: 0.8, ease: "power1.inOut" }, 4.95);
+    tl.to("#s02-orbit", { opacity: 0, duration: 0.15, ease: "power2.in" }, 5.6);
+    // zoom-through: the camera dives into the dot (root #thread-dot grows 1 -> 6 over the same 0.4s)
+    tl.fromTo("#s02-cam", { scale: 1, opacity: 1 }, { scale: 7, opacity: 0, duration: 0.4, ease: "power2.in", immediateRender: false }, 5.68);
     window.__timelines["s02"] = tl;
   </script>
 </template>

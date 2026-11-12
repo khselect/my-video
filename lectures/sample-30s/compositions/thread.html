@@ -1,0 +1,50 @@
+<template>
+  <style>
+    #root { position: absolute; inset: 0; pointer-events: none; }
+    /* wipe s03 -> s04: a panel band with an amber leading edge sweeps left to right across the cut */
+    #thread-wipe { position: absolute; left: 0; top: 0; width: 2400px; height: 1080px; background: #121a36; border-right: 12px solid #ffb547; }
+    /* through-element: the amber dot ("작은 점") carried across every scene */
+    #thread-pan, #thread-pos { position: absolute; left: 0; top: 0; width: 0; height: 0; }
+    #thread-dot { position: absolute; left: -23px; top: -23px; width: 46px; height: 46px; border-radius: 50%; background: #ffb547; box-shadow: 0 0 28px rgba(255, 181, 71, 0.45); }
+  </style>
+  <div id="root" data-composition-id="thread" data-width="1920" data-height="1080" data-layout-allow-overflow>
+    <div id="thread-wipe"></div>
+    <div id="thread-pan"><div id="thread-pos"><div id="thread-dot"></div></div></div>
+  </div>
+  <script>
+    const tl = gsap.timeline({ paused: true });
+    // Every scene camera is anchored on the dot (transform-origin = dot position), so the dot only
+    // takes the camera's scale; pans/parallax are mirrored on #thread-pan with the same ease and length.
+    tl.set("#thread-pos", { x: 550, y: 540 }, 0);
+    tl.set("#thread-pan", { x: 0 }, 0);
+    tl.set("#thread-wipe", { x: -2400 }, 0);
+    // s01 — the shaky pencil settles into one dot (paper centre 550,540)
+    tl.fromTo("#thread-dot", { scale: 0, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.45, ease: "back.out(2.2)" }, 3.1);
+    // s02 — key-zoom on "점 하나만" (cam 1 -> 1.2 -> 1 around the dot)
+    tl.fromTo("#thread-dot", { scale: 1 }, { scale: 1.2, duration: 0.7, ease: "power2.inOut", immediateRender: false }, 6.56 + 2.66);
+    tl.fromTo("#thread-dot", { scale: 1.2 }, { scale: 1, duration: 0.7, ease: "power2.inOut", immediateRender: false }, 6.56 + 4.2);
+    // zoom-through: the camera dives into the dot
+    tl.fromTo("#thread-dot", { scale: 1 }, { scale: 6, duration: 0.4, ease: "power2.in", immediateRender: false }, 12.24);
+    // s03 — the dot shrinks back and drops to the ground as the first dot of the stack
+    tl.fromTo("#thread-dot", { scale: 6 }, { scale: 1, duration: 0.5, ease: "power2.out", immediateRender: false }, 12.64);
+    tl.fromTo("#thread-pos", { y: 540 }, { y: 800, duration: 0.6, ease: "bounce.out", immediateRender: false }, 12.84);
+    // s03 pan (mirrors #s03-cam x 0 -> -90)
+    tl.fromTo("#thread-pan", { x: 0 }, { x: -90, duration: 6.54, ease: "sine.inOut", immediateRender: false }, 13.24);
+    // wipe s03 -> s04 (band covers the whole frame at the 20.08 cut); the dot rides over it to the s04 axis
+    tl.fromTo("#thread-wipe", { x: -2400 }, { x: 1920, duration: 0.6, ease: "power2.inOut", immediateRender: false }, 19.78);
+    tl.fromTo("#thread-pan", { x: -90 }, { x: 0, duration: 0.6, ease: "power2.inOut", immediateRender: false }, 19.78);
+    tl.fromTo("#thread-pos", { x: 550, y: 800 }, { x: 720, y: 660, duration: 0.6, ease: "power2.inOut", immediateRender: false }, 19.78);
+    // s04 parallax (mirrors the near layer x 0 -> -100)
+    tl.fromTo("#thread-pan", { x: 0 }, { x: -100, duration: 8.6, ease: "sine.inOut", immediateRender: false }, 20.4);
+    // "문을 닫지만": the dot bumps into the closed door
+    tl.fromTo("#thread-dot", { x: 0 }, { x: -30, duration: 0.18, ease: "power2.out", yoyo: true, repeat: 1, immediateRender: false }, 20.08 + 2.2);
+    // "다음을 기대하게": the dot rolls along the axis into the open door
+    tl.fromTo("#thread-pos", { x: 720 }, { x: 1380, duration: 1.0, ease: "power2.inOut", immediateRender: false }, 20.08 + 5.5);
+    // s05 — out of the iris to the centre of the row
+    tl.fromTo("#thread-pan", { x: -100 }, { x: 0, duration: 0.8, ease: "power2.inOut", immediateRender: false }, 29.44 + 1.0);
+    tl.fromTo("#thread-pos", { x: 1380, y: 660 }, { x: 960, y: 600, duration: 0.8, ease: "power2.inOut", immediateRender: false }, 29.44 + 1.0);
+    // child and picture fold into the dot
+    tl.fromTo("#thread-dot", { scale: 1 }, { scale: 1.6, duration: 0.45, ease: "back.out(2.2)", immediateRender: false }, 29.44 + 5.2);
+    window.__timelines["thread"] = tl;
+  </script>
+</template>

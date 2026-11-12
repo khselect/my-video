@@ -3,35 +3,49 @@
     @font-face { font-family: "Pretendard"; font-weight: 700; src: url("assets/fonts/Pretendard-Bold.woff2") format("woff2"); }
     @font-face { font-family: "Pretendard"; font-weight: 900; src: url("assets/fonts/Pretendard-Black.woff2") format("woff2"); }
     #root { position: absolute; inset: 0; font-family: "Pretendard"; color: #f4f1ea; }
+    /* camera: push-in anchored on the paper centre (550,540), where the dot appears */
+    #s01-cam { position: absolute; inset: 0; transform-origin: 550px 540px; }
     #s01-paper { position: absolute; left: 220px; top: 220px; width: 660px; height: 640px; border-radius: 20px; background: #f4f1ea; box-shadow: 0 30px 60px rgba(0, 0, 0, 0.35); }
-    #s01-scribble { position: absolute; inset: 0; }
+    #s01-scribble { position: absolute; left: 0; top: 0; width: 660px; height: 640px; }
     #s01-scribble path { fill: none; stroke: #8a93b8; stroke-width: 6; stroke-linecap: round; stroke-dasharray: 900; stroke-dashoffset: 900; }
-    #s01-dot { position: absolute; left: 50%; top: 50%; width: 46px; height: 46px; margin: -23px 0 0 -23px; border-radius: 50%; background: #0b1020; opacity: 0; }
+    #s01-pencil { position: absolute; left: 300px; top: 120px; width: 60px; height: 200px; transform-origin: 30px 200px; }
     #s01-l1 { position: absolute; left: 1020px; top: 400px; width: 680px; font-size: 56px; font-weight: 700; color: #8a93b8; opacity: 0; }
-    #s01-l2 { position: absolute; left: 1020px; top: 500px; width: 680px; font-size: 92px; font-weight: 900; color: #ffb547; opacity: 0; }
+    #s01-l2 { position: absolute; left: 1020px; top: 490px; width: 680px; font-size: 92px; font-weight: 900; color: #ffb547; opacity: 0; }
   </style>
   <div id="root" data-composition-id="s01" data-width="1920" data-height="1080">
-    <div id="s01-paper">
-      <svg id="s01-scribble" viewBox="0 0 660 640" preserveAspectRatio="none">
-        <path d="M 120 460 Q 180 380 150 300 Q 110 220 220 180 Q 330 140 300 240 Q 270 340 380 360 Q 480 380 440 280" />
-      </svg>
-      <div id="s01-dot"></div>
+    <div id="s01-cam">
+      <div id="s01-paper">
+        <svg id="s01-scribble" viewBox="0 0 660 640">
+          <path d="M 250 420 Q 280 380 270 350 Q 255 320 300 300 Q 345 285 330 330 Q 318 370 360 372 Q 400 374 385 340" />
+        </svg>
+        <!-- pencil hovering over the paper, tip at (330,320) of the paper -->
+        <svg id="s01-pencil" viewBox="0 0 60 200">
+          <rect x="14" y="0" width="32" height="28" rx="6" fill="#ff6b6b" />
+          <rect x="14" y="26" width="32" height="12" fill="#8a93b8" />
+          <rect x="14" y="38" width="32" height="122" fill="#ffb547" />
+          <polygon points="14,160 46,160 30,200" fill="#e8d9bd" />
+          <polygon points="24,186 36,186 30,200" fill="#0b1020" />
+        </svg>
+      </div>
+      <div id="s01-l1">머뭇거리는 아이</div>
+      <div id="s01-l2">첫걸음은?</div>
     </div>
-    <div id="s01-l1">머뭇거리는 아이</div>
-    <div id="s01-l2">첫걸음은?</div>
   </div>
   <script>
     const tl = gsap.timeline({ paused: true });
-    // "머뭇거리는 아이" lands with the opening clause, at voice_start 0.3s
+    // camera: push-in 1 -> 1.1 over the whole scene, ends exactly on the s02 match-cut frame
+    tl.fromTo("#s01-cam", { scale: 1 }, { scale: 1.1, duration: 6.56, ease: "sine.inOut" }, 0);
+    // "머뭇거리는 아이" (voice starts 0.3s)
     tl.fromTo("#s01-l1", { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.5, ease: "power3.out" }, 0.3);
-    tl.fromTo("#s01-scribble path", { strokeDashoffset: 900 }, { strokeDashoffset: 0, duration: 2.2, ease: "none" }, 0.3);
-    // trembling pencil while the line is drawn
-    tl.to("#s01-scribble", { x: 3, duration: 0.09, repeat: 11, yoyo: true, ease: "none" }, 0.3);
-    // the shaky line settles into one small dot as "첫걸음은?" lands, ~3.43s
-    tl.to("#s01-scribble", { opacity: 0, duration: 0.4, ease: "power2.in" }, 3.0);
-    tl.fromTo("#s01-dot", { opacity: 0, scale: 0.3 }, { opacity: 1, scale: 1, duration: 0.45, ease: "back.out(2.2)" }, 3.1);
-    tl.fromTo("#s01-l2", { opacity: 0, y: 24, filter: "blur(8px)" }, { opacity: 1, y: 0, filter: "blur(0px)", duration: 0.5, ease: "power4.out" }, 3.43);
-    tl.to("#root", { opacity: 0, duration: 0.3, ease: "power2.in" }, 6.21);
+    // hesitant pencil: trembles while a shaky line is drawn
+    tl.fromTo("#s01-pencil", { rotation: -6 }, { rotation: 6, duration: 0.22, ease: "sine.inOut", repeat: 11, yoyo: true }, 0);
+    tl.fromTo("#s01-scribble path", { strokeDashoffset: 900 }, { strokeDashoffset: 0, duration: 2.2, ease: "power1.inOut" }, 0.4);
+    // the pencil and its line shrink into one small dot (the root #thread-dot pops at 3.1s, paper centre)
+    tl.to("#s01-pencil", { scale: 0, opacity: 0, duration: 0.4, ease: "power2.in" }, 2.8);
+    tl.to("#s01-scribble", { opacity: 0, scale: 0.4, transformOrigin: "330px 320px", duration: 0.4, ease: "power2.in" }, 2.8);
+    // "첫걸음은?" lands ~3.3s
+    tl.fromTo("#s01-l2", { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.5, ease: "power3.out" }, 3.3);
+    // no fade: s01 -> s02 is a match-cut on the paper/dot
     window.__timelines["s01"] = tl;
   </script>
 </template>

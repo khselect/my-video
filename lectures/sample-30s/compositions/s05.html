@@ -3,31 +3,65 @@
     @font-face { font-family: "Pretendard"; font-weight: 700; src: url("assets/fonts/Pretendard-Bold.woff2") format("woff2"); }
     @font-face { font-family: "Pretendard"; font-weight: 900; src: url("assets/fonts/Pretendard-Black.woff2") format("woff2"); }
     #root { position: absolute; inset: 0; font-family: "Pretendard"; color: #f4f1ea; }
-    .s05-chip { position: absolute; top: 360px; width: 420px; height: 110px; border-radius: 55px; color: #0b1020; font-size: 44px; font-weight: 900; display: flex; align-items: center; justify-content: center; opacity: 0; }
-    #s05-c1 { left: 250px; background: #ffb547; } #s05-c2 { left: 750px; background: #4fd1c5; } #s05-c3 { left: 1250px; background: #ff6b6b; }
-    #s05-line { position: absolute; left: 0; width: 1920px; top: 430px; text-align: center; font-size: 72px; font-weight: 900; line-height: 1.15; opacity: 0; }
-    #s05-line em { font-style: normal; color: #ffb547; }
-    #s05-sub { position: absolute; left: 0; width: 1920px; top: 660px; text-align: center; font-size: 38px; font-weight: 700; color: #8a93b8; opacity: 0; }
+    /* camera: pull-out anchored on the convergence point (960,600), where the dot ends */
+    #s05-cam { position: absolute; inset: 0; transform-origin: 960px 600px; }
+    #s05-l1 { position: absolute; left: 0; top: 190px; width: 1920px; text-align: center; font-size: 76px; font-weight: 900; color: #f4f1ea; opacity: 0; }
+    #s05-l2 { position: absolute; left: 0; top: 295px; width: 1920px; text-align: center; font-size: 92px; font-weight: 900; color: #f4f1ea; opacity: 0; }
+    #s05-l2 em { font-style: normal; color: #ffb547; }
+    #s05-iris { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; }
+    #s05-iris-edge { fill: none; stroke: #ffb547; stroke-width: 6; }
+    #s05-child { position: absolute; left: 450px; top: 470px; width: 220px; height: 260px; opacity: 0; }
+    #s05-pic { position: absolute; left: 1240px; top: 480px; width: 240px; height: 240px; opacity: 0; }
   </style>
   <div id="root" data-composition-id="s05" data-width="1920" data-height="1080">
-    <div id="s05-c1" class="s05-chip">점</div>
-    <div id="s05-c2" class="s05-chip">손을 든 아이</div>
-    <div id="s05-c3" class="s05-chip">완성된 그림</div>
-    <div id="s05-line"><em>작은 점 하나,</em><br />큰 그림의 시작</div>
-    <div id="s05-sub">우리 아이의 첫 점을 찾아봐요</div>
+    <svg id="s05-iris" viewBox="0 0 1920 1080"><circle id="s05-iris-edge" cx="1280" cy="660" r="30" /></svg>
+    <div id="s05-cam">
+      <div id="s05-l1">작은 점 하나,</div>
+      <div id="s05-l2"><em>큰 그림</em>의 시작</div>
+      <!-- a child raising one hand -->
+      <svg id="s05-child" viewBox="0 0 220 260">
+        <path d="M 128 112 L 172 34" stroke="#f2c9a0" stroke-width="20" stroke-linecap="round" fill="none" />
+        <path d="M 88 120 L 58 178" stroke="#f2c9a0" stroke-width="20" stroke-linecap="round" fill="none" />
+        <circle cx="110" cy="72" r="38" fill="#f2c9a0" />
+        <path d="M 74 62 Q 110 22 146 62 Q 128 44 110 46 Q 92 44 74 62 Z" fill="#3a2a1e" />
+        <rect x="74" y="108" width="72" height="100" rx="26" fill="#4fd1c5" />
+        <rect x="84" y="200" width="20" height="50" rx="10" fill="#26315e" />
+        <rect x="116" y="200" width="20" height="50" rx="10" fill="#26315e" />
+      </svg>
+      <!-- a piece of the finished dot picture from s03 -->
+      <svg id="s05-pic" viewBox="0 0 240 240">
+        <rect x="10" y="10" width="220" height="220" rx="22" fill="#121a36" stroke="#26315e" stroke-width="4" />
+        <g fill="#4fd1c5"><circle cx="120" cy="56" r="13" /><circle cx="92" cy="84" r="13" /><circle cx="120" cy="84" r="13" /><circle cx="148" cy="84" r="13" />
+          <circle cx="64" cy="112" r="13" /><circle cx="92" cy="112" r="13" /><circle cx="148" cy="112" r="13" /><circle cx="176" cy="112" r="13" /></g>
+        <circle cx="120" cy="112" r="13" fill="#ff6b6b" />
+        <g fill="#f4f1ea"><circle cx="120" cy="140" r="13" /><circle cx="120" cy="168" r="13" /></g>
+        <g fill="#4a5580"><circle cx="64" cy="196" r="13" /><circle cx="92" cy="196" r="13" /><circle cx="148" cy="196" r="13" /><circle cx="176" cy="196" r="13" /></g>
+        <circle cx="120" cy="196" r="13" fill="#ffb547" />
+      </svg>
+    </div>
   </div>
   <script>
     const tl = gsap.timeline({ paused: true });
-    [0.2, 0.55, 0.9].forEach((at, i) => {
-      tl.fromTo("#s05-c" + (i + 1), { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 0.35, ease: "power3.out" }, at);
-    });
-    // "시작돼요" closes the first clause — the three ideas converge, ~3.3s
-    tl.to("#s05-c1", { x: 500, scale: 0.4, opacity: 0, duration: 0.45, ease: "power3.in" }, 3.3);
-    tl.to("#s05-c3", { x: -500, scale: 0.4, opacity: 0, duration: 0.45, ease: "power3.in" }, 3.3);
-    tl.to("#s05-c2", { scale: 0.4, opacity: 0, duration: 0.45, ease: "power3.in" }, 3.3);
-    tl.fromTo("#s05-line", { opacity: 0, scale: 0.9, filter: "blur(10px)" }, { opacity: 1, scale: 1, filter: "blur(0px)", duration: 0.55, ease: "power4.out" }, 3.85);
-    // "우리 아이의 첫 점을 찾아봐요" — second clause, 3.85s to 6.08s
-    tl.fromTo("#s05-sub", { opacity: 0 }, { opacity: 1, duration: 0.45 }, 4.4);
+    // mask transition: iris opens from the dot in the doorway (1280,660)
+    tl.fromTo("#root", { clipPath: "circle(30px at 1280px 660px)" }, { clipPath: "circle(2300px at 1280px 660px)", duration: 0.8, ease: "power3.out" }, 0);
+    // the iris edge is drawn as an amber ring so the opening frame is never bare
+    tl.fromTo("#s05-iris-edge", { attr: { r: 30 } }, { attr: { r: 2300 }, duration: 0.8, ease: "power3.out" }, 0);
+    tl.fromTo("#s05-iris", { opacity: 1 }, { opacity: 0, duration: 0.3, ease: "power2.in" }, 0.5);
+    // camera: pull-out over the whole scene
+    tl.fromTo("#s05-cam", { scale: 1.12 }, { scale: 1, duration: 6.88, ease: "sine.inOut" }, 0);
+    // "큰 그림은": the picture piece
+    tl.fromTo("#s05-pic", { opacity: 0, y: 30, rotation: 6 }, { opacity: 1, y: 0, rotation: 0, duration: 0.5, ease: "power3.out" }, 0.4);
+    // "작은 점 하나에서" (the root dot reaches the centre 1.0-1.8)
+    tl.fromTo("#s05-l1", { opacity: 0, y: 20 }, { opacity: 1, y: 0, duration: 0.5, ease: "power3.out" }, 1.74);
+    // "시작돼요"
+    tl.fromTo("#s05-l2", { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.5, ease: "power3.out" }, 3.0);
+    // "우리 아이의": the child raises a hand
+    tl.fromTo("#s05-child", { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 0.45, ease: "back.out(1.8)" }, 3.8);
+    // converge: child and picture glide into the dot and fold into it ("첫 점을")
+    tl.fromTo("#s05-child", { x: 0 }, { x: 400, duration: 0.8, ease: "power2.inOut", immediateRender: false }, 4.4);
+    tl.fromTo("#s05-pic", { x: 0 }, { x: -400, duration: 0.8, ease: "power2.inOut", immediateRender: false }, 4.48);
+    tl.to(["#s05-child", "#s05-pic"], { scale: 0.15, opacity: 0, duration: 0.3, ease: "power2.in", stagger: 0.08 }, 4.95);
+    // 5.6 - 6.88: breathing hold on the sentence and the single dot
     window.__timelines["s05"] = tl;
   </script>
 </template>
