@@ -43,7 +43,24 @@ HOLD_EPS = 0.35            # below this a frame counts as "the same drawing" (co
 MOVING_MIN = 1.0           # a stretch counts as "moving" when its changed frames differ by at least this
 MAX_FPS = 60
 JITTER_ON = 0.1            # share of pixels changing every frame above this = live grain / boil
-FONT = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+FONT = next((f for f in ("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",   # Linux
+                          "/System/Library/Fonts/Supplemental/Arial Bold.ttf",       # macOS
+                          "/System/Library/Fonts/Helvetica.ttc",
+                          "C:/Windows/Fonts/arialbd.ttf") if Path(f).exists()), None)
+
+
+def _has_drawtext() -> bool:
+    """Homebrew's default ffmpeg is built without libfreetype -> no drawtext filter."""
+    try:
+        out = subprocess.run(["ffmpeg", "-hide_banner", "-filters"], capture_output=True, text=True).stdout
+    except OSError:
+        return False
+    return any(line.split()[1:2] == ["drawtext"] for line in out.splitlines() if line.strip())
+
+
+# timestamp label on sheet tiles; left out (sheets still made) when drawtext or a font is missing
+STAMP = ("drawtext=fontfile='{}':text='%{{pts\\:hms}}':x=6:y=6:fontsize=16:fontcolor=white:box=1:boxcolor=black@0.6,"
+         .format(FONT.replace(":", "\\:")) if FONT and _has_drawtext() else "")
 
 
 def parse_time(s: str) -> float:
@@ -214,8 +231,7 @@ def contact_sheet(path: Path, out: Path, start, dur, seconds: float) -> None:
     every = max(1.0, round(seconds / 24, 1))     # about 24 tiles
     cols = 6
     rows = max(1, int(np.ceil(seconds / every / cols)))
-    vf = (f"fps=1/{every},scale=320:-2,drawtext=fontfile={FONT}:text='%{{pts\\:hms}}':x=6:y=6:fontsize=16:"
-          f"fontcolor=white:box=1:boxcolor=black@0.6,tile={cols}x{rows}:padding=4:color=gray")
+    vf = f"fps=1/{every},scale=320:-2,{STAMP}tile={cols}x{rows}:padding=4:color=gray"
     _ff(path, start, dur, vf, out)
 
 
@@ -226,9 +242,8 @@ def cuts_sheet(path: Path, out: Path, trans: list[dict], fps: float, offset: flo
     if not ts:
         return
     sel = "+".join(f"between(t,{x - 0.5 / fps:.4f},{x + 0.5 / fps:.4f})" for x in ts)
-    vf = (f"select='{sel}',scale=320:-2,drawtext=fontfile={FONT}:text='%{{pts\\:hms}}':x=6:y=6:fontsize=16:"
-          f"fontcolor=white:box=1:boxcolor=black@0.6,tile=2x{max(1, len(ts) // 2)}:padding=4:color=gray")
-    subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(path), "-vf", vf, "-vsync", "vfr",
+    vf = f"select='{sel}',scale=320:-2,{STAMP}tile=2x{max(1, len(ts) // 2)}:padding=4:color=gray"
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(path), "-vf", vf, "-fps_mode", "vfr",
                     "-frames:v", "1", str(out)], capture_output=True)
 
 
