@@ -54,3 +54,6 @@ lectures/*/style-ref/*.png
 lectures/*/style-ref/*.jpg
 lectures/*/style-ref/*.jpeg
 lectures/*/style-ref/*.webp
+# reference videos and frames taken from them are third-party too; the measured numbers (spec.json/md) are kept
+lectures/*/style-ref/reference.*
+lectures/*/style-ref/measure/*.jpg

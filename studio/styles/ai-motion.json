@@ -55,6 +55,9 @@
       {"key": "motion", "label": "모션", "type": "select",
        "choices": [["push-in", "밀어 들어가기"], ["pull-out", "당겨 나오기"], ["pan-left", "왼쪽 패닝"], ["pan-right", "오른쪽 패닝"], ["parallax", "시차 (두 겹)"], ["reveal", "드러내기"]],
        "default": {"first": "push-in", "last": "pull-out", "cycle": ["pan-right", "parallax", "reveal", "pan-left", "push-in"]}},
+      {"key": "transition", "label": "다음 장면으로 전환", "type": "select",
+       "choices": [["match-cut", "매치 컷"], ["wipe", "와이프"], ["mask-reveal", "마스크 리빌"], ["zoom-through", "줌 스루"], ["crossfade", "크로스페이드"], ["end", "(마지막 장면)"]],
+       "default": {"last": "end", "cycle": ["match-cut", "wipe", "zoom-through", "mask-reveal"]}},
       {"key": "text", "label": "화면 글자", "type": "text", "default": "scene.on_screen"}
     ]
   }

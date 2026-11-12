@@ -134,7 +134,22 @@ def finalize(project: Path, video: Path, a) -> dict:
                                                            encoding="utf-8")
     for k, c in qa["checks"].items():
         print(f"qa {c['status']:<4} {k:<9} {c['message']}")
-    return {"qa": qa_render.summary(qa)}
+    out = {"qa": qa_render.summary(qa)}
+    ref_spec = project / "style-ref" / "measure" / "spec.json"
+    if ref_spec.exists():   # measured reference video: compare this render with the same measuring code
+        import ref_measure
+        ref = json.loads(ref_spec.read_text(encoding="utf-8"))
+        cmp = ref_measure.compare(ref, ref_measure.measure(video, sheets=False))
+        (video.parent / (video.name + ".compare.md")).write_text(ref_measure.compare_md(cmp), encoding="utf-8")
+        (video.parent / (video.name + ".compare.json")).write_text(json.dumps(cmp, ensure_ascii=False, indent=2) + "\n",
+                                                                    encoding="utf-8")
+        labels = [ref_measure.LABELS.get(k, k) for k in cmp["off"] if not k.startswith("motion_bin_")]
+        bins = sum(k.startswith("motion_bin_") for k in cmp["off"])
+        out["ref_compare"] = {"off": len(cmp["off"]), "metrics": labels, "motion_bins_off": bins,
+                              "palette_ok": cmp["palette_ok"], "tolerance": cmp["tolerance"]}
+        print(f"reference compare: {len(cmp['off'])} item(s) off by more than ±{cmp['tolerance']:.0%}"
+              + (f": {', '.join(labels)}" if labels else ""))
+    return out
 
 
 def file_name(version: str, commit: str, dirty: bool, ext: str = ".mp4") -> str:

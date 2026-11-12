@@ -56,7 +56,7 @@
   ],
   "plan": {
     "rows": "scenes",
-    "note": "대본(3단계)의 장면마다 한 줄. 도형·글자·그림을 바꾸면 이 단계의 장면 제작에만 반영되고 대본은 그대로입니다.",
+    "note": "대본(3단계)의 장면마다 한 줄. 도형·카메라·전환·글자·그림을 바꾸면 이 단계의 장면 제작에만 반영되고 대본은 그대로입니다. 카메라·전환 규칙은 motion-rules.md.",
     "columns": [
       {
         "key": "shape",
@@ -93,6 +93,92 @@
           ]
         ],
         "default": "scene.shape"
+      },
+      {
+        "key": "camera",
+        "label": "카메라",
+        "type": "select",
+        "choices": [
+          [
+            "push-in",
+            "밀어 들어가기"
+          ],
+          [
+            "pull-out",
+            "당겨 나오기"
+          ],
+          [
+            "pan",
+            "패닝"
+          ],
+          [
+            "tilt",
+            "틸트"
+          ],
+          [
+            "key-zoom",
+            "핵심 요소로 줌인·줌아웃"
+          ],
+          [
+            "parallax",
+            "시차 (두 겹)"
+          ],
+          [
+            "focus",
+            "초점 이동"
+          ]
+        ],
+        "default": {
+          "first": "push-in",
+          "last": "pull-out",
+          "cycle": [
+            "key-zoom",
+            "pan",
+            "parallax",
+            "tilt",
+            "focus"
+          ]
+        }
+      },
+      {
+        "key": "transition",
+        "label": "다음 장면으로 전환",
+        "type": "select",
+        "choices": [
+          [
+            "match-cut",
+            "매치 컷 (모양·위치 이어짐)"
+          ],
+          [
+            "wipe",
+            "와이프"
+          ],
+          [
+            "mask-reveal",
+            "마스크 리빌"
+          ],
+          [
+            "zoom-through",
+            "관통 요소로 줌 스루"
+          ],
+          [
+            "push",
+            "밀어내기"
+          ],
+          [
+            "end",
+            "(마지막 장면)"
+          ]
+        ],
+        "default": {
+          "last": "end",
+          "cycle": [
+            "match-cut",
+            "zoom-through",
+            "wipe",
+            "mask-reveal"
+          ]
+        }
       },
       {
         "key": "text",
