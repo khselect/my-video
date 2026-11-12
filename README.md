@@ -22,6 +22,9 @@
 ### Studio 7단계
 
 `1 원문 → 2 기획 → 3 대본 → 4 나레이션 → 5 장면 → 6 렌더 → 7 게시` — 단계마다 사람이 승인하고, 앞 단계를 고치면 뒤 승인은 무효가 됩니다.
+**화면 캡처와 단계별 사용법은 [docs/USAGE.md](docs/USAGE.md)** 에 있습니다.
+
+<a href="docs/USAGE.md"><img src="docs/images/studio/4-narration.png" width="640" alt="Lecture Studio 4단계 나레이션 화면"></a>
 긴 작업은 진행률 팝업(%·남은 시간)으로 보입니다.
 
 2026-11-12에 참고 영상(코드 모션그래픽 vs 영상 생성 AI) 분석을 바탕으로 다음을 더했습니다 (자세한 내용은 DEVLOG 12~18장).
