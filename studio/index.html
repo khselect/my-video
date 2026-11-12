@@ -56,6 +56,7 @@
   .badge { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--chip); }
   .badge.approved { background: var(--ok); color: #fff; }
   .badge.stale, .badge.editing { background: var(--warn); color: #fff; }
+  .badge.qawarn { background: var(--accent); color: #111; }
   #job { position: fixed; right: 16px; bottom: 16px; width: min(560px, calc(100vw - 32px)); display: none; }
   #job pre { max-height: 260px; margin-top: 6px; }
   .pbar { height: 10px; border-radius: 999px; background: var(--chip); overflow: hidden; margin: 8px 0 4px; position: relative; }
@@ -645,14 +646,29 @@ async function importSkill(fileList) {
 }
 
 /* 6 render */
+const QA_LABEL = { pass: "통과", warn: "확인", fail: "문제" };
+const QA_NAME = { blank: "빈 화면", freeze: "멈춤", loudness: "음량", readtime: "읽기 시간" };
+function qaBadge(q) {
+  if (!q) return '<span class="muted">—</span>';
+  const cls = { pass: "approved", warn: "qawarn" }[q.overall] || "stale";
+  return `<span class="badge ${cls}" title="${esc((q.messages || []).join("\n"))}">${QA_LABEL[q.overall] || esc(q.overall)}</span>`;
+}
+function qaBox(v) {
+  const q = v && v.qa;
+  if (!q) return v ? '<p class="muted">자동 검사 기록 없음 (이 기능 전에 만든 버전)</p>' : "";
+  const items = Object.keys(QA_NAME).filter((k) => q[k]).map((k) => `${QA_NAME[k]} ${QA_LABEL[q[k]] || q[k]}`).join(" · ");
+  if (q.overall === "pass") return `<p class="muted">자동 검사 통과 — ${items} · 음량 −14 LUFS 로 맞춤</p>`;
+  return `<details class="warnbox" open><summary>자동 검사: ${QA_LABEL[q.overall]} — 승인 전에 확인하세요</summary><ul>${
+    (q.messages || []).map((m) => `<li>${esc(m)}</li>`).join("")}</ul><p class="muted">${items} · 상세: renders/${esc(v.file)}.qa.json</p></details>`;
+}
 function pRender() {
   const vs = view.renders;
   const last = vs[vs.length - 1];
   return `<div class="card"><h3 style="margin-top:0">렌더 (버전 관리)</h3>
     <div class="row"><input id="rnote" placeholder="이번 버전에서 바뀐 점" style="flex:1"><button class="primary" onclick="act('render',{note:$('rnote').value})">새 버전 렌더</button></div>
-    ${last ? `<h3>${esc(last.version)} · ${esc(last.note)}</h3><video controls src="/media/${encodeURIComponent(cur)}/renders/${esc(last.file)}"></video>` : '<p class="muted">아직 렌더 없음</p>'}
-    <table><tr><th>버전</th><th>날짜</th><th>커밋</th><th>길이</th><th>메모</th></tr>${vs.slice().reverse().map((v) =>
-      `<tr><td><a href="/media/${encodeURIComponent(cur)}/renders/${esc(v.file)}" target="_blank">${esc(v.version)}</a></td><td>${esc(v.created.slice(0, 10))}</td><td>${esc(v.source.commit)}${v.source.dirty ? "*" : ""}</td><td>${v.seconds ?? ""}s</td><td>${esc(v.note)}</td></tr>`).join("")}</table>
+    ${last ? `<h3>${esc(last.version)} · ${esc(last.note)}</h3><video controls src="/media/${encodeURIComponent(cur)}/renders/${esc(last.file)}"></video>${qaBox(last)}` : '<p class="muted">아직 렌더 없음</p>'}
+    <table><tr><th>버전</th><th>날짜</th><th>커밋</th><th>길이</th><th>검사</th><th>메모</th></tr>${vs.slice().reverse().map((v) =>
+      `<tr><td><a href="/media/${encodeURIComponent(cur)}/renders/${esc(v.file)}" target="_blank">${esc(v.version)}</a></td><td>${esc(v.created.slice(0, 10))}</td><td>${esc(v.source.commit)}${v.source.dirty ? "*" : ""}</td><td>${v.seconds ?? ""}s</td><td>${qaBadge(v.qa)}</td><td>${esc(v.note)}</td></tr>`).join("")}</table>
     <p class="muted">* = 커밋 안 된 수정으로 렌더. 다시 만들 수 있게 하려면 먼저 git 커밋.</p>${gate("render")}</div>`;
 }
 

@@ -11,7 +11,9 @@ Files:  renders/v003_2026-11-03_a1b2c3d.mp4   (suffix -dirty when uncommitted ch
         renders/manifest.json                 committed; the videos themselves are git-ignored
 
 Revision = git commit of the source. To rebuild an old version: git checkout <commit>, then render again.
-Uses only the standard library plus git, npx and ffprobe.
+Every new version is loudness-normalized to -14 LUFS and checked by qa_render.py (blank/frozen frames,
+loudness, read time): renders/<file>.qa.json + a summary under "qa" in the manifest.
+Skip with --no-loudnorm / --no-qa. Uses the standard library plus git, npx and ffprobe (numpy for the QA).
 """
 import argparse
 import datetime as dt
@@ -110,6 +112,31 @@ def detect_engine(project: Path) -> str:
     sys.exit("cannot tell the engine: pass --engine remotion|hyperframes")
 
 
+def finalize(project: Path, video: Path, a) -> dict:
+    """Loudness-normalize, then run the automatic checks. Returns {"qa": summary} for the manifest entry."""
+    if getattr(a, "no_qa", False) and getattr(a, "no_loudnorm", False):
+        return {}
+    try:
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        import qa_render
+    except ImportError as e:  # numpy missing on this machine: keep the render, say why there is no QA
+        print(f"qa skipped: {e}")
+        return {}
+    if not getattr(a, "no_loudnorm", False):
+        n = qa_render.normalize(video)
+        print("loudness: " + (f"normalized {n['before_lufs']:.1f} -> {qa_render.TARGET_LUFS:g} LUFS" if n.get("done")
+                              else f"unchanged ({n.get('reason')})"))
+    if getattr(a, "no_qa", False):
+        return {}
+    lecture = project if (project / "scenes.json").exists() else None
+    qa = qa_render.run_qa(video, lecture)
+    (video.parent / (video.name + ".qa.json")).write_text(json.dumps(qa, ensure_ascii=False, indent=2) + "\n",
+                                                           encoding="utf-8")
+    for k, c in qa["checks"].items():
+        print(f"qa {c['status']:<4} {k:<9} {c['message']}")
+    return {"qa": qa_render.summary(qa)}
+
+
 def file_name(version: str, commit: str, dirty: bool, ext: str = ".mp4") -> str:
     return f"{version}_{dt.date.today().isoformat()}_{commit}{'-dirty' if dirty else ''}{ext}"
 
@@ -140,12 +167,14 @@ def cmd_render(a) -> None:
     proc = subprocess.run(cmd, cwd=project)
     if proc.returncode or not out.exists():
         sys.exit(f"render failed (exit {proc.returncode}); nothing recorded")
+    render_seconds = round((dt.datetime.now() - started).total_seconds(), 1)
+    checked = finalize(project, out, a)
 
     entry = {
         "version": version, "file": out.name, "kind": "render", "engine": engine, "composition": composition,
         "created": started.isoformat(timespec="seconds"),
-        "render_seconds": round((dt.datetime.now() - started).total_seconds(), 1),
-        "source": git, "command": " ".join(cmd), "note": a.note or "", **media_info(out),
+        "render_seconds": render_seconds,
+        "source": git, "command": " ".join(cmd), "note": a.note or "", **media_info(out), **checked,
     }
     m.save(entry)
     ensure_gitignore(project)
@@ -167,9 +196,10 @@ def cmd_add(a) -> None:
     out = m.dir / file_name(version, git["commit"], git["dirty"], src.suffix or ".mp4")
     m.dir.mkdir(parents=True, exist_ok=True)
     shutil.move(str(src), out) if a.move else shutil.copy2(src, out)
+    checked = finalize(project, out, a)
     entry = {"version": version, "file": out.name, "kind": a.kind, "derived_from": a.from_version,
              "created": dt.datetime.now().isoformat(timespec="seconds"), "source": git,
-             "original_path": str(src), "note": a.note or "", **media_info(out)}
+             "original_path": str(src), "note": a.note or "", **media_info(out), **checked}
     m.save(entry)
     ensure_gitignore(project)
     print(f"{version} -> renders/{out.name}")
@@ -209,6 +239,8 @@ def main() -> None:
     p.add_argument("--composition", help="Remotion composition id (remembered from the last version)")
     p.add_argument("--note", help="what changed in this version")
     p.add_argument("--require-clean", action="store_true", help="refuse to render uncommitted changes")
+    p.add_argument("--no-loudnorm", action="store_true", help="keep the audio level as rendered")
+    p.add_argument("--no-qa", action="store_true", help="skip the automatic checks")
     p.set_defaults(fn=cmd_render)
 
     p = sub.add_parser("add", help="register an existing video as a new version")
@@ -218,6 +250,8 @@ def main() -> None:
     p.add_argument("--from", dest="from_version", help="the version this one was made from")
     p.add_argument("--kind", default="derived", help="e.g. voiced, music, final")
     p.add_argument("--move", action="store_true", help="move instead of copy")
+    p.add_argument("--no-loudnorm", action="store_true", help="keep the audio level as it is")
+    p.add_argument("--no-qa", action="store_true", help="skip the automatic checks")
     p.set_defaults(fn=cmd_add)
 
     p = sub.add_parser("list", help="list versions")

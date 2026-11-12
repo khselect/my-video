@@ -16,6 +16,7 @@
 | [9. AI 일러스트 모션 (Higgsfield)](#9-ai-일러스트-모션-higgsfield-2026-11-06) | 구현 · 유료 실행 미검증 | `studio/styles/ai-motion.json` |
 | [10. 내 목소리 화자 (Fish Audio · Qwen)](#10-내-목소리-화자-fish-audio--qwen-2026-11-06) | 구현 · 유료 실행 미검증 | `tools/fish_audio.py`, `tools/narrate.py` |
 | [12. 모션 연출 규칙 (P0-1)](#12-모션-연출-규칙-p0-1-2026-11-12) | 구현 · 실제 제작 미검증 | `.claude/skills/edu-video/references/motion-rules.md`, `app.py` `motion_hint()` |
+| [13. 렌더 후 자동 검사 (P0-2)](#13-렌더-후-자동-검사-p0-2-2026-11-12) | 완료 (합성·실제 렌더로 검증) | `tools/qa_render.py`, `render_version.py` `finalize()` |
 | [11. 교훈·문제 해결](#11-교훈문제-해결) | — | — |
 
 ---
@@ -135,4 +136,20 @@
 - `app.py` `motion_hint()` 를 edu-video 엔진(`prompt_visuals`)과 스킬 엔진(`prompt_style`) 제작 지시에 추가. 스킬 엔진은 "SKILL.md 가 고정한 안무 우선" 단서, 작업 폴더에서 실행되므로 규칙 파일은 절대 경로 + `--add-dir` 로 읽기 허용.
 - `style-guide.md` 모션 규칙·`SKILL.md` 4장에서 motion-rules 참조, 장면 끝 페이드는 다음 장면과 겹치게. `ai-motion` 은 overscan·관통 요소 전환으로 수정.
 - 검증: 4개 스타일(edu-video·ai-motion·paper-cutout·plush-crew)의 제작 지시에 규칙이 1번씩 들어가는 것 확인. **실제 `claude -p` 제작·렌더는 미실행** — 렌더 결과 수치 확인은 P0-2(렌더 후 자동 검사)에서.
+
+## 13. 렌더 후 자동 검사 (P0-2) (2026-11-12)
+
+- `tools/qa_render.py <영상> [--lecture 폴더] [--normalize]` → `<영상>.qa.json`. 검사마다 통과/확인/문제와 수치.
+  - **빈 화면**: 10fps·192×108 회색 프레임의 경계 에너지(평균 |dx|+|dy|) < 0.6 이고 픽셀 분산 < 12. 0.3초 이상 확인, 1초 이상 문제, 0초 프레임이 비면 확인(썸네일). 검은 화면은 평균 밝기 < 10 으로 구분.
+  - **멈춤**: 연속 프레임 평균 차이 < 0.15 가 4초 이상.
+  - **음량**: loudnorm 측정, 목표 −14±1 LUFS·피크 ≤ −1 dBTP. `--normalize` 는 2패스 loudnorm 으로 오디오만 다시 인코딩(영상 복사).
+  - **읽기 시간**: scenes.json `on_screen` 글자 수 vs 나레이션 manifest 장면 길이, 글자 수÷5+1.5초 (장면 단위 근사).
+  - **소요시간**: `build/logs/<시작시각>-<작업>.log` 의 시작~수정 시각으로 작업별 최근 소요시간.
+  - 초당 움직임 양(`motion_per_second`)도 저장 — P1-1 레퍼런스 측정에서 재사용.
+- `render_version.py` 의 `render`·`add`(스킬 스타일 렌더도 `render_style.py` → `add` 경유) 가 새 버전마다 −14 LUFS 정규화 → 검사 → `renders/<파일>.qa.json` + manifest `qa` 요약. `--no-loudnorm`·`--no-qa` 로 끔. numpy 가 없으면 렌더는 남기고 검사만 건너뜀.
+- Studio 6단계: 최신 버전 아래 검사 결과 상자(문제·확인이면 펼쳐서 "승인 전에 확인"), 버전 표에 검사 배지(통과 초록 / 확인 주황 / 문제 빨강).
+- 보정: 처음 분산 기준 6 은 어두운 방사형 그라데이션 배경(분산 6.15)을 놓침 → 12 로. 경계 에너지는 글자 있는 화면 5.4 vs 빈 배경 0.2 로 확실히 갈림.
+- 검증:
+  - 합성 영상(빈 그라데이션 0.5초·검은 화면 1.2초·멈춤 4.8초·큰 음량)에서 4가지 모두 검출, 정상 영상은 통과. −22.7 → −14.0 LUFS 정규화 후 영상 스트림 그대로.
+  - **실제 렌더(sample-30s, HyperFrames 0.9.7, 무음 대신 사인파 자리표시 음성)**: 장면 경계 4곳에서 0.3~0.4초 빈 화면 (6.5·12.6·20.0·29.4초) — 템플릿의 "장면 끝 opacity 0" 때문. 24.4~29.2초 4.8초 멈춤. 프레임을 직접 보고 모두 실제 문제임을 확인 → P0-1 규칙(겹치는 전환·관통 요소)의 필요성 확인.
 
