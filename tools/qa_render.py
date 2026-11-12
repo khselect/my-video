@@ -63,17 +63,23 @@ def probe(path: Path) -> dict:
 
 # ---------------- picture ----------------
 
-def grey_frames(path: Path, fps: int = SAMPLE_FPS, start: float | None = None, dur: float | None = None) -> np.ndarray:
-    """All frames as (n, H, W) float32 grey, sampled at `fps`."""
+def grey_frames(path: Path, fps: float | None = SAMPLE_FPS, start: float | None = None, dur: float | None = None,
+                size: tuple[int, int] = (W, H), color: bool = False) -> np.ndarray:
+    """All frames as (n, h, w) float32 grey (or (n, h, w, 3) RGB with color=True), sampled at `fps`
+    (fps=None keeps every source frame — needed to see hold patterns)."""
+    w, h = size
+    ch = 3 if color else 1
     cmd = ["ffmpeg", "-v", "error"]
     if start is not None:
         cmd += ["-ss", str(start)]
     if dur is not None:
         cmd += ["-t", str(dur)]
-    cmd += ["-i", str(path), "-vf", f"fps={fps},scale={W}:{H}:flags=area,format=gray", "-f", "rawvideo", "-"]
+    vf = ([f"fps={fps}"] if fps else []) + [f"scale={w}:{h}:flags=area", "format=rgb24" if color else "format=gray"]
+    cmd += ["-i", str(path), "-vf", ",".join(vf), "-vsync", "passthrough", "-f", "rawvideo", "-"]
     raw = subprocess.run(cmd, capture_output=True).stdout
-    n = len(raw) // (W * H)
-    return np.frombuffer(raw[: n * W * H], dtype=np.uint8).reshape(n, H, W).astype(np.float32)
+    n = len(raw) // (w * h * ch)
+    shape = (n, h, w, 3) if color else (n, h, w)
+    return np.frombuffer(raw[: n * w * h * ch], dtype=np.uint8).reshape(shape).astype(np.float32)
 
 
 def frame_stats(frames: np.ndarray) -> dict[str, np.ndarray]:
