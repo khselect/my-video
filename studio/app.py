@@ -58,6 +58,9 @@ DEFAULT_CONFIG = {
     "voice": "me",
     "claude_cmd": "claude",
     "image_python": str(Path.home() / ".edu-video" / "image-venv" / "bin" / "python"),   # tools/setup_image_gen.sh
+    "stt_python": sys.executable,        # a Python with faster-whisper (e.g. the qwen-tts venv), else whisper.cpp via npx
+    "stt_engine": "auto",                # auto | faster-whisper | hyperframes
+    "stt_model": "small",                # whisper model for the narration listen-back check
 }
 SLUG_RE = re.compile(r"^[A-Za-z0-9가-힣._-]{1,80}$")
 
@@ -108,11 +111,21 @@ def save_state(slug: str, st: dict) -> None:
 def mark_changed(st: dict, stage: str) -> None:
     """Editing a stage un-approves it and marks every later approval stale."""
     i = STAGES.index(stage)
+    if i < STAGES.index("visuals"):
+        unapprove_storyboard(st)
     for s in STAGES[i:]:
         rec = st["stages"].get(s)
         if rec and rec.get("status") == "approved":
             rec["status"] = "stale" if s != stage else "editing"
             rec["stale_since"] = time.strftime("%Y-%m-%dT%H:%M:%S")
+
+
+def unapprove_storyboard(st: dict) -> None:
+    """The storyboard was approved for an older script / plan / style: ask again before building."""
+    sb = st.get("storyboard")
+    if sb and sb.get("approved"):
+        sb["approved"] = False
+        sb["stale_since"] = time.strftime("%Y-%m-%dT%H:%M:%S")
 
 
 def approve(st: dict, stage: str, note: str = "") -> None:
@@ -249,6 +262,17 @@ def job_progress(job: dict, text: str) -> dict:
             label = f"장면 제작 중 (Claude · {job['style']})" + (f" · 이미지 {n}장 생성" if n else "")
         elif kind == "claude-brief":
             label = "참고 스타일 분석 중 (Claude)"
+        elif kind == "claude-storyboard":
+            label = "스토리보드 작성 중 (Claude · 계획만, 파일 생성 없음)"
+        elif kind == "stt-check":
+            total = len(_scene_ids(job["slug"], with_text=True)) or 1
+            done = len(re.findall(r"^scene \S+ (?:pass|warn|fail|accepted) ", text, re.M))
+            pct = 5 + 95 * min(done, total) / total
+            label = f"다시 듣기 {done}/{total} 장면" + (" · 음성 인식 모델 준비 중" if not done else "")
+        elif kind == "analyze-music":
+            label = "음악 박자 분석 중 (BPM·박·강박·악센트)"
+        elif kind == "measure-ref":
+            label = "참고 영상 측정 중 (전환·fps·움직임·색)"
         elif kind == "claude-style":
             label = "스킬 분석 중 (Claude)"
         elif kind == "fish-clone":
@@ -318,6 +342,19 @@ def style_hint(st: dict) -> str:
     return f"\n- 영상 형태: {CATEGORY[style['category']]} '{style['name']}' ({style.get('kind', '')}). {form}.{tail}"
 
 
+MOTION_RULES = ROOT / ".claude/skills/edu-video/references/motion-rules.md"   # absolute: skill styles run in their work dir
+
+
+def motion_hint(skill_owned: bool = False) -> str:
+    """Shared motion-direction rules (easing, camera, scene links, read time) for every style's build prompt."""
+    scope = ("스킬 SKILL.md 가 고정한 안무·카메라·전환은 스킬을 우선하고, 스킬이 정하지 않은 부분에만 적용한다. "
+             if skill_owned else "")
+    return (f"\n\n모션 연출 규칙: 장면을 만들기 전에 {MOTION_RULES} 를 읽고 따른다. {scope}"
+            "핵심: 움직임마다 이징 지정(linear 금지), 장면마다 카메라 움직임 1개·영상 전체 4종 이상, "
+            "영상을 관통하는 연결 요소 1개, 전환 중 빈 화면 금지, 글자는 등장 후 (글자 수÷5+1.5)초 유지. "
+            "끝나면 보고에 관통 요소·카메라 움직임 목록·전환 문법을 한 줄씩 적는다.")
+
+
 def prompt_visuals(slug: str, feedback: dict | None = None) -> str:
     base = f"""edu-video 스킬과 HyperFrames 스킬(/hyperframes:hyperframes)의 Contract 를 따른다.
 작업 폴더: lectures/{slug} (HyperFrames 프로젝트)
@@ -327,6 +364,7 @@ def prompt_visuals(slug: str, feedback: dict | None = None) -> str:
 - 루트 data-duration = manifest total_duration. 장면 하나 = compositions/<id>.html.
 - 스타일: .claude/skills/edu-video/references/style-guide.md, 기준 구현 templates/example-lecture.
 - 끝나면 lectures/{slug} 에서 npx hyperframes check --json 을 실행해 error 를 0개로 만든다."""
+    base += motion_hint()
     if feedback:
         lines = "\n".join(f"- {sid}: {txt}" for sid, txt in feedback.items() if txt.strip())
         base += f"\n\n이미 만든 장면을 아래 피드백대로만 고친다(다른 장면은 건드리지 않는다):\n{lines}"
@@ -470,7 +508,7 @@ def prompt_style(slug: str, st: dict, style: dict, opts: dict, feedback: dict | 
 - 유료 API(FAL, ElevenLabs, ChatCut 등)는 호출하지 않는다. 키도 설정되어 있지 않다.
 - 내용은 이 강의의 원문·기획·대본에서 온다. 스킬 예시의 문구·장면을 그대로 쓰지 않는다.{out_rule}
 - 끝나면 만든 파일과 사람이 확인할 점을 짧게 보고한다."""
-    text += ref_hint(slug)
+    text += motion_hint(skill_owned=True) + ref_hint(slug) + beat_hint(slug, style) + storyboard_hint(slug, st)
     if feedback:
         lines = "\n".join(f"- {sid}: {txt}" for sid, txt in feedback.items() if txt.strip())
         text += f"\n\n이미 만든 결과를 아래 피드백대로만 고친다(다른 부분은 건드리지 않는다):\n{lines}"
@@ -488,7 +526,8 @@ def edu_prompt(slug: str, st: dict, style: dict, opts: dict, feedback: dict | No
         paid = paid_notice(style, opts)
         extra += ("\n\n사용자가 Studio 에서 승인한 유료 사용 범위 (이 범위만): " + " / ".join(paid)) if paid else \
                  "\n\n유료 서비스(Higgsfield 등)는 호출하지 않는다."
-    return prompt_visuals(slug, feedback) + edu_option_lines(style, opts) + extra + (f"\n\n{plan}" if plan else "") + ref_hint(slug)
+    return (prompt_visuals(slug, feedback) + edu_option_lines(style, opts) + extra + (f"\n\n{plan}" if plan else "")
+            + ref_hint(slug) + beat_hint(slug, style) + storyboard_hint(slug, st))
 
 
 def _when(cond: dict, opts: dict) -> bool:
@@ -621,6 +660,7 @@ def plan_diff(plan: dict, built: dict) -> dict:
 # ---- reference style: a link + screenshots → style-ref/brief.md (own words; never the reference's frames or characters)
 
 REF_IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".webp"}
+REF_VIDEO_EXTS = {".mp4", ".mov", ".webm", ".mkv", ".m4v"}   # a reference video to measure (git-ignored)
 
 
 def style_assets(d: Path, style: dict) -> list[str]:
@@ -686,11 +726,24 @@ def ref_dir(slug: str) -> Path:
     return lecture_dir(slug) / "style-ref"
 
 
+def ref_video(slug: str) -> Path | None:
+    d = ref_dir(slug)
+    vids = sorted(p for p in d.glob("reference.*") if p.suffix.lower() in REF_VIDEO_EXTS) if d.exists() else []
+    return vids[0] if vids else None
+
+
 def ref_view(slug: str) -> dict:
     d = ref_dir(slug)
     meta = read_json(d / "ref.json", {}) or {}
-    brief = d / "brief.md"
-    return {"url": meta.get("url", ""), "made_at": meta.get("made_at", ""),
+    brief, m = d / "brief.md", d / "measure"
+    vid = ref_video(slug)
+    measure = None
+    if (m / "spec.md").exists():
+        measure = {"spec": (m / "spec.md").read_text(encoding="utf-8"), "at": meta.get("measured_at", ""),
+                   "sheets": [f"style-ref/measure/{n}" for n in ("contact.jpg", "cuts.jpg") if (m / n).exists()]}
+    return {"url": meta.get("url", ""), "made_at": meta.get("made_at", ""), "range": meta.get("range", ""),
+            "video": vid.name if vid else "", "video_mb": round(vid.stat().st_size / 1e6, 1) if vid else 0,
+            "measure": measure,
             "images": sorted(p.name for p in d.glob("*") if p.suffix.lower() in REF_IMAGE_EXTS) if d.exists() else [],
             "brief": brief.read_text(encoding="utf-8") if brief.exists() else ""}
 
@@ -699,18 +752,147 @@ def ref_hint(slug: str) -> str:
     brief = ref_dir(slug) / "brief.md"
     if not brief.exists():
         return ""
-    return (f"\n\n참고 스타일 메모: {brief} 를 먼저 읽고 색·도형·질감·인물 비율·움직임·전환을 그 메모에 맞춘다. "
+    text = (f"\n\n참고 스타일 메모: {brief} 를 먼저 읽고 색·도형·질감·인물 비율·움직임·전환을 그 메모에 맞춘다. "
             "메모의 IMAGE_STYLE 줄은 이미지 생성의 style_note 로 쓴다. 참고 영상의 캐릭터·장면·문구를 그대로 베끼지 않는다.")
+    if "## 효과 사양표" in brief.read_text(encoding="utf-8"):
+        text += (" 메모의 '효과 사양표' 파라미터는 코드 한곳(장면 파일 맨 위 상수 묶음, 예: const FX = {ANIM_FPS: 12, ...})에 "
+                 "이름 붙여 모으고 그 값대로 구현한다. 렌더 후 Studio 가 같은 측정 코드로 레퍼런스와 대조한다(±20%).")
+    return text
+
+
+# ---- narration listen-back: tools/stt_check.py → build/audio/stt.json (+ accepted scenes in lecture.json)
+
+def stt_view(slug: str, st: dict) -> dict | None:
+    d = lecture_dir(slug) / "build" / "audio"
+    r = read_json(d / "stt.json") if (d / "stt.json").exists() else None
+    if not r:
+        return None
+    man = read_json(d / "manifest.json", {}) or {}
+    now = {s["id"]: s.get("hash") for s in man.get("scenes", [])}
+    acc = st.get("stt_accept") or {}
+    for row in r["scenes"]:
+        row["stale"] = now.get(row["id"]) != row.get("hash")      # audio regenerated since the check
+        if row["status"] in ("warn", "fail") and not row["stale"] and acc.get(row["id"]) == row.get("hash"):
+            row["status"] = "accepted"    # a person accepted exactly this take
+        elif row["status"] == "accepted" and row["stale"]:
+            row["status"] = "warn"        # accepted an older take: listen again
+    r["flagged"] = [x["id"] for x in r["scenes"] if x["status"] in ("warn", "fail")]
+    r["stale"] = any(x["stale"] for x in r["scenes"]) or set(now) - {x["id"] for x in r["scenes"]} != set()
+    return r
+
+
+# ---- music & beats: one music file per project (assets/music/, git-ignored) + beats.json (tools/beats.py)
+MUSIC_EXTS = {".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg"}
+
+
+def music_dir(slug: str) -> Path:
+    return lecture_dir(slug) / "assets" / "music"
+
+
+def project_music(slug: str) -> Path | None:
+    d = music_dir(slug)
+    files = sorted(p for p in d.iterdir() if p.suffix.lower() in MUSIC_EXTS) if d.exists() else []
+    return files[0] if files else None
+
+
+def music_view(slug: str) -> dict:
+    m = project_music(slug)
+    beats = read_json(music_dir(slug) / "beats.json") if (music_dir(slug) / "beats.json").exists() else None
+    meta = read_json(music_dir(slug) / "music.json", {}) or {}
+    return {"file": m.name if m else "", "mb": round(m.stat().st_size / 1e6, 1) if m else 0,
+            "bpm_hint": meta.get("bpm_hint", ""), "analyzed_at": meta.get("analyzed_at", ""),
+            "beats": {k: beats[k] for k in ("bpm", "beat_seconds", "first_beat", "seconds")} | {
+                "n_beats": len(beats["beats"]), "n_bars": len(beats["downbeats"]), "n_accents": len(beats["accents"])}
+            if beats else None}
+
+
+def beat_hint(slug: str, style: dict) -> str:
+    m, bj = project_music(slug), music_dir(slug) / "beats.json"
+    if not m or not bj.exists():
+        return ""
+    b = read_json(bj)
+    fmt = lambda xs: ", ".join(f"{x:.2f}" for x in xs)  # noqa: E731
+    grid = (f"음악: {m} — {b['bpm']} BPM, 한 박 {b['beat_seconds']}초, 첫 박 {b['first_beat']}초 "
+            f"(n번째 박 = {b['first_beat']} + n×{b['beat_seconds']}), 길이 {b['seconds']}초.\n"
+            f"- 마디 첫 박(강박): {fmt(b['downbeats'][:48])}\n- 악센트(가장 센 타격): {fmt(b['accents'][:32])}")
+    if style.get("engine") == "edu-video":
+        place = (f"\n- 루트 index.html 에 <audio id=\"music\" src=\"assets/music/{m.name}\" data-start=\"0\" data-volume=\"0.12\"> 를 넣는다 "
+                 "(나레이션 아래 깔리는 크기, 영상이 음악보다 길면 data-duration 으로 끝을 맞춘다).")
+    else:
+        place = "\n- 음악은 Studio 6단계 렌더가 붙인다. 스킬의 음악 생성 스크립트는 실행하지 않는다."
+    if style.get("narration") == "none":
+        rule = ("\n박 맞춤 (나레이션 없음): 영상 길이를 음원 길이에 맞추고, 모든 장면 전환·텍스트 등장을 박에, 큰 전환·타이틀은 강박·악센트에 둔다. "
+                "빠른 구간과 쉬는 구간을 섞되 매 박마다 컷하지는 않는다.")
+    else:
+        rule = ("\n박 맞춤 (나레이션 우선): 장면 경계(나레이션 manifest)는 움직이지 않는다. 장면 안의 요소 등장·강조 팝·카메라 히트·"
+                "전환 효과 시작은 ±0.3초 안의 가장 가까운 박으로 옮기고(강조는 강박·악센트 우선), 그 안에 박이 없으면 그대로 둔다.")
+    return "\n\n" + grid + place + rule + " 렌더 후 Studio 가 전환과 박의 차이를 ms 로 잰다."
+
+
+def storyboard_path(slug: str) -> Path:
+    return lecture_dir(slug) / "storyboard.md"
+
+
+def storyboard_hint(slug: str, st: dict) -> str:
+    sb = st.get("storyboard") or {}
+    p = storyboard_path(slug)
+    if not (sb.get("approved") and p.exists()):
+        return ""
+    return (f"\n\n승인된 스토리보드: {p} — 사용자가 이 계획을 승인했다. 장면 구성·카메라·전환·관통 요소·에셋 목록·"
+            "파라미터·합격 조건을 그대로 따르고, 바꿔야 하면 이유를 보고에 적는다. 계획에 없는 유료 생성은 하지 않는다.")
+
+
+def prompt_storyboard(slug: str, build_prompt: str) -> str:
+    p = storyboard_path(slug)
+    return f"""[스토리보드 단계] 아래 '제작 지시'로 장면을 만들기 전에, 계획만 세워 {p} 하나에 쓰고 멈춘다.
+이번 작업에서 할 수 있는 일: 파일 읽기, {p} 쓰기. 하지 않는 일: compositions·이미지·영상 파일 만들기, 명령 실행, 유료 도구 호출.
+
+storyboard.md 형식 (한국어):
+# 스토리보드 — <강의 제목>
+## 한 줄 요약 · 관통 요소 · 전환 문법 (motion-rules.md 3절)
+## 장면표
+| 장면 | 시간(초, 나레이션 manifest 그대로) | 화면 구성 | 카메라 (움직임·이징·길이) | 등장 순서와 타이밍 | 전환 → 다음 장면 | 에셋 |
+## 효과 파라미터 — 코드 한곳에 모을 상수 (참고 스타일 메모의 효과 사양표가 있으면 그 값에서 시작)
+## 에셋 계획 — 그림·스티커마다 용도, 배경과 묶을지 분리할지, 생성 프롬프트 초안(영어), 모델, 장수 합계, 예상 크레딧 (유료면 서비스별)
+## 합격 조건 — 렌더 후 자동 검사(빈 화면·멈춤·음량·읽기 시간)와 레퍼런스 대조(있으면 ±20%)에서 볼 값
+## 확신이 낮은 부분 — 사용자에게 물어볼 것 2~3개
+
+규칙: 장면표는 대본의 모든 장면을 빠짐없이. 카메라 움직임은 영상 전체 4종 이상, 연속 장면 중복 없음. 원문에 없는 숫자를 화면에 쓰지 않는다.
+
+──── 제작 지시 (이번에는 실행하지 말고 계획에만 쓴다) ────
+{build_prompt}"""
 
 
 def prompt_brief(slug: str) -> str:
     r, d = ref_view(slug), ref_dir(slug)
     shots = "\n".join(f"- {d / n}" for n in r["images"]) or "- (없음)"
+    m = d / "measure"
+    if r["measure"]:
+        measured = f"""
+레퍼런스 영상 측정 결과 (tools/ref_measure.py, 이 숫자가 1순위 근거다):
+- {m / 'spec.md'} 를 끝까지 읽는다 (전환 시각·방식, 실효 fps, 움직임 양, 그레인, 팔레트).
+- {m / 'contact.jpg'}(컨택트 시트)와 {m / 'cuts.jpg'}(전환 직전·직후)를 Read 로 본다.
+"""
+        spec_sections = """## 효과 사양표
+| 효과 | 근거 (측정값·시각/프레임, 또는 스크린샷 파일명) | 구현 (GSAP·CSS·HyperFrames) | 파라미터 초기값 |
+|---|---|---|---|
+(관찰한 효과마다 한 줄. 예: 2프레임 홀드 반복 → 12fps 계단 → ANIM_FPS=12 / 전환 분당 8회·중앙값 샷 6초 → 장면당 컷 1회 → SHOT_S≈6 /
+ 그레인 0.35 → 매 프레임 바뀌는 노이즈 층 → GRAIN_OPACITY=0.06. 측정이 아닌 눈 판단은 근거 칸에 "(추정)". 6~12줄.)
+## 이 영상다움 — 우선순위 3~5개
+## 합격 조건 — 렌더를 같은 측정 코드로 재서 확인할 값 (±20%)
+(분당 전환 수, 실효 fps, 움직임 양 평균, 그레인 유무, 대표 팔레트 HEX 3~4개. 나레이션 길이에 맞추느라 달라질 값은 그렇다고 적는다)
+"""
+    else:
+        measured = "\n레퍼런스 영상 측정 없음 — 수치 근거가 없으므로 효과 사양표의 근거는 스크린샷 관찰로 쓰고 모두 \"(추정)\" 표시.\n"
+        spec_sections = """## 효과 사양표
+| 효과 | 근거 (스크린샷 파일명, 모두 추정) | 구현 (GSAP·CSS·HyperFrames) | 파라미터 초기값 |
+|---|---|---|---|
+"""
     return f"""Lecture Studio 의 '참고 스타일 메모'를 만든다. 결과는 {d}/brief.md 하나뿐이다.
 참고 링크: {r['url'] or '(없음)'} — WebFetch 로 열어 제목·설명·썸네일·스타일 단서를 읽는다. 내용이 거의 없으면(자바스크립트 페이지) 그렇다고 적고 스크린샷에 기댄다.
 스크린샷 (Read 로 한 장씩 본다):
 {shots}
-
+{measured}
 brief.md 를 한국어로, 아래 제목 그대로 쓴다. 관찰한 특징을 일반적인 말로 묘사한다.
 ## 한 줄 요약
 ## 색 — hex 5~8개 (배경 / 주색 / 강조 / 글자)
@@ -719,9 +901,10 @@ brief.md 를 한국어로, 아래 제목 그대로 쓴다. 관찰한 특징을 �
 ## 화면 구성·카메라 — 여백, 시점, 줌·패닝
 ## 움직임·전환 — 속도감, 장면 전환 방식, 글자 등장 방식
 ## 이 강의에 적용할 점 — 3~5개
-IMAGE_STYLE: <이미지 생성 프롬프트에 붙일 영어 한 줄. 색·도형·질감만 묘사>
+{spec_sections}IMAGE_STYLE: <이미지 생성 프롬프트에 붙일 영어 한 줄. 색·도형·질감만 묘사>
 
 규칙:
+- 측정값이 있으면 숫자를 그대로 인용한다 (반올림 정도만). 측정과 눈 판단이 다르면 측정을 따르고 차이를 적는다.
 - 링크와 스크린샷에서 실제로 본 것만 쓴다. 일반적인 관례나 짐작으로 채우지 않는다. 근거가 없는 항목은 "근거 부족 — 스크린샷 필요" 라고 쓰고,
   링크도 읽히지 않고 스크린샷도 없으면 맨 위에 그 사실만 적고 IMAGE_STYLE 은 비운다.
 - 참고 자료의 캐릭터·로고·장면·문구를 옮겨 적지 않는다. 특정 작가·스튜디오·작품 이름을 IMAGE_STYLE 에 넣지 않는다.
@@ -837,6 +1020,10 @@ def lecture_view(slug: str) -> dict:
         "style": {"id": style["id"], "options": opts},
         "plan": plan_view(slug, st, style, opts),
         "ref": ref_view(slug),
+        "music": music_view(slug),
+        "stt": stt_view(slug, st),
+        "storyboard": {**(st.get("storyboard") or {}),
+                       "text": storyboard_path(slug).read_text(encoding="utf-8") if storyboard_path(slug).exists() else ""},
         "style_assets": style_assets(d, style),
         "paid": paid_notice(style, opts),
         "voice": voice_view(),
@@ -922,34 +1109,128 @@ def do_action(slug: str, action: str, body: dict) -> dict:
             shutil.copy(d / "build" / "audio" / "narration.wav", d / "assets" / "voice" / "narration.wav")
         return {"job": run_job(slug, "narrate", cmd, ROOT, after=copy_track)}
 
+    if action == "stt_check":
+        if not (d / "build" / "audio" / "manifest.json").exists():
+            raise ValueError("나레이션을 먼저 생성하세요")
+        acc_p = d / "build" / "audio" / "stt_accept.json"
+        write_json(acc_p, st.get("stt_accept") or {})
+        cmd = [cfg.get("stt_python") or py, str(TOOLS / "stt_check.py"), str(d), "--engine", cfg.get("stt_engine", "auto"),
+               "--model", cfg.get("stt_model", "small"), "--accept", str(acc_p)]
+        if body.get("scenes"):
+            cmd += ["--scenes", *body["scenes"]]
+        return {"job": run_job(slug, "stt-check", cmd, ROOT)}
+
+    if action == "stt_accept":   # a person listened: the flagged scene is read correctly (holds for this audio only)
+        r = stt_view(slug, st) or {}
+        row = next((x for x in r.get("scenes", []) if x["id"] == body.get("scene")), None)
+        if not row:
+            raise ValueError("다시 듣기 검사 결과에 없는 장면입니다")
+        st.setdefault("stt_accept", {})[row["id"]] = row["hash"]
+        save_state(slug, st)
+        return {"ok": True}
+
     if action == "save_ref":
         rd = ref_dir(slug); rd.mkdir(exist_ok=True)
         url = str(body.get("url", "")).strip()
         if url and not re.match(r"^https?://", url):
             raise ValueError("링크는 http:// 또는 https:// 로 시작해야 합니다")
+        rng = str(body.get("range", "")).strip()
+        if rng and not re.match(r"^[0-9:.]*-?[0-9:.]*$", rng):
+            raise ValueError("구간은 0:30-1:30, 30-90, 1:20- 처럼 적습니다")
         meta = read_json(rd / "ref.json", {}) or {}
         meta["url"] = url
+        if "range" in body:
+            meta["range"] = rng
         write_json(rd / "ref.json", meta)
         return {"ok": True}
 
-    if action == "upload_ref":   # raw image upload, see do_POST
+    if action == "upload_ref":   # raw image or video upload, see do_POST
         name = Path(body["name"]).name
-        if Path(name).suffix.lower() not in REF_IMAGE_EXTS:
-            raise ValueError("스크린샷은 png·jpg·webp 만 됩니다")
+        ext = Path(name).suffix.lower()
         rd = ref_dir(slug); rd.mkdir(exist_ok=True)
+        if ext in REF_VIDEO_EXTS:            # one reference video per project; a new one replaces the old
+            for old in rd.glob("reference.*"):
+                old.unlink()
+            shutil.rmtree(rd / "measure", ignore_errors=True)
+            (rd / f"reference{ext}").write_bytes(body["data"])
+            return {"ok": True, "video": True}
+        if ext not in REF_IMAGE_EXTS:
+            raise ValueError("스크린샷은 png·jpg·webp, 영상은 mp4·mov·webm·mkv 만 됩니다")
+        if len(body["data"]) > MAX_SKILL_FILE:
+            raise ValueError("이미지가 너무 큽니다")
         (rd / name).write_bytes(body["data"])
         return {"ok": True}
 
     if action == "delete_ref":
         f = ref_dir(slug) / Path(body.get("name", "")).name
-        if f.suffix.lower() in REF_IMAGE_EXTS and f.exists():
+        if f.suffix.lower() in REF_IMAGE_EXTS | REF_VIDEO_EXTS and f.exists():
             f.unlink()
+            if f.suffix.lower() in REF_VIDEO_EXTS:
+                shutil.rmtree(ref_dir(slug) / "measure", ignore_errors=True)
         return {"ok": True}
+
+    if action == "upload_music":   # raw upload, see do_POST
+        name = Path(body["name"]).name
+        ext = Path(name).suffix.lower()
+        if ext not in MUSIC_EXTS:
+            raise ValueError("음원은 mp3·wav·m4a·aac·flac·ogg 만 됩니다")
+        md = music_dir(slug); md.mkdir(parents=True, exist_ok=True)
+        for old in md.iterdir():      # one music file per project
+            if old.suffix.lower() in MUSIC_EXTS or old.name == "beats.json":
+                old.unlink()
+        (md / re.sub(r"[^\w.\-]+", "_", name)).write_bytes(body["data"])
+        unapprove_storyboard(st); save_state(slug, st)
+        return {"ok": True}
+
+    if action == "delete_music":
+        md = music_dir(slug)
+        if md.exists():
+            for old in md.iterdir():
+                if old.suffix.lower() in MUSIC_EXTS or old.name in ("beats.json", "music.json"):
+                    old.unlink()
+        unapprove_storyboard(st); save_state(slug, st)
+        return {"ok": True}
+
+    if action == "analyze_music":
+        m = project_music(slug)
+        if not m:
+            raise ValueError("음원 파일을 먼저 올리세요")
+        hint = str(body.get("bpm_hint", "")).strip()
+        if hint and not re.match(r"^\d{2,3}(\.\d+)?$", hint):
+            raise ValueError("BPM 힌트는 숫자로 (예: 92)")
+        meta_p = music_dir(slug) / "music.json"
+        meta = read_json(meta_p, {}) or {}
+        meta["bpm_hint"] = hint
+        write_json(meta_p, meta)
+
+        def stamp_music():
+            mm = read_json(meta_p, {}) or {}
+            mm["analyzed_at"] = time.strftime("%Y-%m-%dT%H:%M:%S")
+            write_json(meta_p, mm)
+            s2 = load_state(slug); unapprove_storyboard(s2); save_state(slug, s2)
+        cmd = [py, str(TOOLS / "beats.py"), "analyze", str(m), "--out", str(music_dir(slug) / "beats.json"),
+               *(["--bpm-hint", hint] if hint else [])]
+        return {"job": run_job(slug, "analyze-music", cmd, ROOT, after=stamp_music)}
+
+    if action == "measure_ref":
+        vid = ref_video(slug)
+        if not vid:
+            raise ValueError("참고 영상 파일을 먼저 올리세요 (mp4·mov·webm)")
+        rng = (read_json(ref_dir(slug) / "ref.json", {}) or {}).get("range", "")
+        out = ref_dir(slug) / "measure"
+        shutil.rmtree(out, ignore_errors=True)
+
+        def stamp_measure():
+            m = read_json(ref_dir(slug) / "ref.json", {}) or {}
+            m["measured_at"] = time.strftime("%Y-%m-%dT%H:%M:%S")
+            write_json(ref_dir(slug) / "ref.json", m)
+        cmd = [py, str(TOOLS / "ref_measure.py"), "measure", str(vid), "--out", str(out), *(["--range", rng] if rng else [])]
+        return {"job": run_job(slug, "measure-ref", cmd, ROOT, after=stamp_measure)}
 
     if action == "make_brief":
         r = ref_view(slug)
-        if not r["url"] and not r["images"]:
-            raise ValueError("참고 링크나 스크린샷을 먼저 넣으세요")
+        if not r["url"] and not r["images"] and not r["measure"]:
+            raise ValueError("참고 링크·스크린샷·측정한 참고 영상 중 하나를 먼저 넣으세요")
         ref_dir(slug).mkdir(exist_ok=True)
 
         def stamp():
@@ -959,6 +1240,8 @@ def do_action(slug: str, action: str, body: dict) -> dict:
             if not (ref_dir(slug) / "brief.md").exists():
                 raise RuntimeError("brief.md 가 만들어지지 않았습니다")
         cmd = claude_cmd(cfg, prompt_brief(slug), bash=[], tools="Read,Write,Edit,Glob,WebFetch", add_dirs=[ref_dir(slug)])
+        unapprove_storyboard(st)
+        save_state(slug, st)
         return {"job": run_job(slug, "claude-brief", cmd, ref_dir(slug), after=stamp)}
 
     if action == "save_style":
@@ -969,6 +1252,7 @@ def do_action(slug: str, action: str, body: dict) -> dict:
         keys = {o["key"] for o in styles[sid]["options"]}
         st["visual_style"] = {"id": sid, "options": {k: str(v) for k, v in (body.get("options") or {}).items() if k in keys}}
         mark_changed(st, "visuals")
+        unapprove_storyboard(st)
         save_state(slug, st)
         return {"ok": True}
 
@@ -988,6 +1272,30 @@ def do_action(slug: str, action: str, body: dict) -> dict:
                     clean[rid] = row
         st.setdefault("visual_plan", {})[style["id"]] = clean
         mark_changed(st, "visuals")
+        unapprove_storyboard(st)
+        save_state(slug, st)
+        return {"ok": True}
+
+    if action == "make_storyboard":
+        build = edu_prompt(slug, st, style, opts) if edu else prompt_style(slug, st, style, opts)
+        sp = storyboard_path(slug)
+
+        def stamp_sb(sid=style["id"]):
+            if not sp.exists():
+                raise RuntimeError("storyboard.md 가 만들어지지 않았습니다")
+            s2 = load_state(slug)
+            s2["storyboard"] = {"made_at": time.strftime("%Y-%m-%dT%H:%M:%S"), "style": sid, "approved": False}
+            save_state(slug, s2)
+        add = [d] + ([Path(style_vars(slug, st, style, opts)["skill"])] if not edu else []) + [MOTION_RULES.parent]
+        cmd = claude_cmd(cfg, prompt_storyboard(slug, build), bash=[], tools="Read,Write,Edit,Glob,Grep", add_dirs=add)
+        return {"job": run_job(slug, "claude-storyboard", cmd, ROOT, after=stamp_sb)}
+
+    if action == "approve_storyboard":
+        sb = st.get("storyboard")
+        if not sb or not storyboard_path(slug).exists():
+            raise ValueError("스토리보드를 먼저 만드세요")
+        sb.update(approved=True, approved_at=time.strftime("%Y-%m-%dT%H:%M:%S"), note=body.get("note", ""))
+        sb.pop("stale_since", None)
         save_state(slug, st)
         return {"ok": True}
 
@@ -1032,7 +1340,7 @@ def do_action(slug: str, action: str, body: dict) -> dict:
             return {"job": run_job(slug, "claude-visuals", cmd, ROOT, after=remember_plan)}
         v = style_vars(slug, st, style, opts)
         cmd = claude_cmd(cfg, prompt_style(slug, st, style, opts, fb), bash=fill(style.get("bash", []), v),
-                         add_dirs=[Path(v["skill"]), d])
+                         add_dirs=[Path(v["skill"]), d, MOTION_RULES.parent])
         return {"job": run_job(slug, "claude-visuals", cmd, Path(v["work"]), after=remember_plan, meta={"style": style["id"]})}
 
     if action == "snapshot":
@@ -1074,6 +1382,8 @@ def do_action(slug: str, action: str, body: dict) -> dict:
         music = work / style["music_from"] if style.get("music_from") and (work / style["music_from"]).exists() else None
         if not music and opts.get("music_file", "").strip():
             music = Path(opts["music_file"].strip()).expanduser()
+        if not music:
+            music = project_music(slug)
         args = [py, str(TOOLS / "render_style.py"), str(d), "--kind", style["id"], "--out", str(out),
                 "--cmd-json", json.dumps(cmd, ensure_ascii=False),
                 "--audio-args-json", json.dumps(style.get("render_audio") or [], ensure_ascii=False),
@@ -1258,10 +1568,16 @@ class Handler(BaseHTTPRequestHandler):
                     raise ValueError(f"파일이 비었거나 너무 큽니다 (최대 {MAX_UPLOAD >> 20}MB)")
                 name = unquote(self.headers.get("X-Filename") or "")
                 return self.send_json(do_action(parts[2], "upload_source", {"name": name, "data": self.rfile.read(n)}))
+            if len(parts) == 4 and parts[:2] == ["api", "lectures"] and parts[3] == "upload_music":
+                n = int(self.headers.get("Content-Length") or 0)
+                if not n or n > MAX_UPLOAD:
+                    raise ValueError(f"파일이 비었거나 너무 큽니다 (최대 {MAX_UPLOAD >> 20}MB)")
+                name = unquote(self.headers.get("X-Filename") or "")
+                return self.send_json(do_action(parts[2], "upload_music", {"name": name, "data": self.rfile.read(n)}))
             if len(parts) == 4 and parts[:2] == ["api", "lectures"] and parts[3] == "upload_ref":
                 n = int(self.headers.get("Content-Length") or 0)
-                if not n or n > MAX_SKILL_FILE:
-                    raise ValueError("이미지가 비었거나 너무 큽니다")
+                if not n or n > MAX_UPLOAD:
+                    raise ValueError(f"파일이 비었거나 너무 큽니다 (최대 {MAX_UPLOAD >> 20}MB)")
                 name = unquote(self.headers.get("X-Filename") or "")
                 return self.send_json(do_action(parts[2], "upload_ref", {"name": name, "data": self.rfile.read(n)}))
             if len(parts) == 4 and parts[:2] == ["api", "lectures"]:

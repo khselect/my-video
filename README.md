@@ -11,6 +11,7 @@
 | 영상 형태·스타일 고르기 | Studio 5단계 — 강의 / 스토리 애니메이션 / 홍보·짧은 클립 ([스타일 형식](studio/styles/SCHEMA.md)) |
 | 장면 그림 생성 | 로컬 FLUX `tools/sticker_local.py` (무료) 또는 Higgsfield (유료, 'AI 일러스트 모션' 스타일) |
 | 버전 붙여 렌더 | `python tools/render_version.py render lectures/<이름> --note "메모"` |
+| 영상 제작 전역 스킬 설치 (다른 프로젝트에서도) | `sh tools/install_global_skill.sh` → `~/.claude/skills/motion-video` ([skills/motion-video](skills/motion-video/SKILL.md)) |
 | 다른 기기에서 받은 뒤 | `npm install` + `python tools/new_lecture.py <이름> --restore-assets` (+ WORKFLOW 2장 기기 설정) |
 
 ### Studio 7단계

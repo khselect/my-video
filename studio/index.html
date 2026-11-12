@@ -56,6 +56,7 @@
   .badge { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: var(--chip); }
   .badge.approved { background: var(--ok); color: #fff; }
   .badge.stale, .badge.editing { background: var(--warn); color: #fff; }
+  .badge.qawarn { background: var(--accent); color: #111; }
   #job { position: fixed; right: 16px; bottom: 16px; width: min(560px, calc(100vw - 32px)); display: none; }
   #job pre { max-height: 260px; margin-top: 6px; }
   .pbar { height: 10px; border-radius: 999px; background: var(--chip); overflow: hidden; margin: 8px 0 4px; position: relative; }
@@ -73,6 +74,7 @@
   .style.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
   .warnbox { background: var(--chip); border-left: 3px solid var(--warn); border-radius: 8px; padding: 8px 12px; font-size: 13px; margin: 8px 0; }
   .warnbox summary { cursor: pointer; font-weight: 700; }
+  .sttdiff { font-size: 12px; margin-top: 4px; } .sttdiff s { color: var(--muted); }
   .warnbox ul { margin: 6px 0 0; padding-left: 18px; }
   .cats { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
   .refbox { border-top: 1px dashed var(--line); margin-top: 14px; padding-top: 10px; }
@@ -134,6 +136,9 @@
       <label>내 목소리 프로필 (clone)</label><input id="cfg_voice" />
       <label>Claude Code 명령</label><input id="cfg_claude_cmd" />
       <label>이미지 생성 Python (스토리 캐릭터, 로컬 FLUX)</label><input id="cfg_image_python" />
+      <label>다시 듣기 검사 Python (faster-whisper 가 설치된 것, 예: qwen-tts venv)</label><input id="cfg_stt_python" />
+      <label>다시 듣기 엔진 · 모델</label><div class="row"><select id="cfg_stt_engine" style="flex:1"><option value="auto">auto — faster-whisper, 없으면 whisper.cpp(npx)</option><option value="faster-whisper">faster-whisper</option><option value="hyperframes">whisper.cpp (npx hyperframes transcribe)</option></select>
+        <select id="cfg_stt_model" style="width:140px"><option>small</option><option>medium</option><option>large-v3</option><option>base</option></select></div>
       <div class="row" style="margin-top:8px"><button onclick="saveConfig()">저장</button></div>
       <p class="muted">studio/config.local.json 에 저장 (git 제외, 맥북에서는 따로 설정)</p>
     </details>
@@ -194,7 +199,7 @@ async function boot() {
     <li>기획 → 대본 → 나레이션 → 장면 → 렌더 → 게시 순서로 검토·승인합니다.</li></ol></div>`;
 }
 async function saveConfig() {
-  const body = {}; for (const k of ["qwen_python", "narrate_backend", "speaker", "voice", "claude_cmd", "image_python"]) body[k] = $("cfg_" + k).value;
+  const body = {}; for (const k of ["qwen_python", "narrate_backend", "speaker", "voice", "claude_cmd", "image_python", "stt_python", "stt_engine", "stt_model"]) body[k] = $("cfg_" + k).value;
   await api("/api/config", body); toast("설정 저장됨");
 }
 async function createLecture() {
@@ -327,11 +332,24 @@ function moveScene(i, d) { view.scenes = readScenes(); const a = view.scenes.sce
 async function saveScenes() { await act("save_scenes", { scenes: readScenes() }); toast("대본 저장됨 — 이후 단계는 다시 승인 필요"); }
 
 /* 4 narration */
+const STT_LABEL = { pass: ["일치", "approved"], warn: ["확인", "qawarn"], fail: ["다름", "stale"], accepted: ["맞게 들림", "approved"] };
+function sttCell(id) {
+  const r = view.stt, x = r && r.scenes.find((y) => y.id === id);
+  if (!x) return '<span class="muted">—</span>';
+  const [lab, cls] = STT_LABEL[x.status] || [x.status, ""];
+  const diffs = (x.diffs || []).slice(0, 4).map((d) => `<div class="sttdiff"><s>${esc(d.script || "∅")}</s> → <b>${esc(d.heard || "(안 들림)")}</b></div>`).join("");
+  const keys = (x.key_terms_missed || []).length ? `<div class="muted">핵심어: ${x.key_terms_missed.map(esc).join(", ")}</div>` : "";
+  return `<span class="badge ${cls}">${lab} ${Math.round(x.match * 100)}%</span>${x.stale ? ' <span class="muted">(음성이 바뀜 — 다시 검사)</span>' : ""}
+    ${x.status === "warn" || x.status === "fail" ? `${diffs}${keys}<button class="mini" onclick="act('stt_accept',{scene:'${esc(id)}'})">맞게 들림</button>` : ""}`;
+}
 function pNarration() {
   const m = view.audio, t = Date.now();
+  // scenes the listen-back check flagged start as "다시" unless a person already judged them
+  for (const id of (view.stt && !view.stt.stale ? view.stt.flagged : [])) if (!review[id]) review[id] = "redo";
   const rows = m ? m.scenes.map((s) => `<tr><td><b>${esc(s.id)}</b><br><span class="muted">${s.start}s · ${s.duration}s</span></td>
       <td>${s.file ? `<audio controls preload="none" src="/media/${encodeURIComponent(cur)}/build/audio/${esc(s.file)}?t=${t}" style="width:100%"></audio>` : '<span class="muted">내레이션 없음</span>'}
       <div class="muted">${esc(((view.scenes || {}).scenes || []).find((x) => x.id === s.id)?.narration || "")}</div></td>
+      <td>${sttCell(s.id)}</td>
       <td style="white-space:nowrap"><label style="display:inline"><input type="radio" name="r_${esc(s.id)}" value="ok" ${review[s.id] === "ok" ? "checked" : ""} onchange="review['${esc(s.id)}']='ok'" style="width:auto"> 좋음</label><br>
       <label style="display:inline"><input type="radio" name="r_${esc(s.id)}" value="redo" ${review[s.id] === "redo" ? "checked" : ""} onchange="review['${esc(s.id)}']='redo'" style="width:auto"> 다시</label></td></tr>`).join("") : "";
   const vs = styleById(view.style.id);
@@ -343,9 +361,17 @@ function pNarration() {
     <p class="muted">장면당 수십 초 걸립니다(GPU 기준 약 50초). silent 는 모델 없이 길이만 잡는 시험용.</p>
     ${m ? `<p>총 ${m.total_duration}초 · ${esc(m.backend)} ${esc(m.speaker || m.voice || "")}</p>
       <audio controls preload="none" src="/media/${encodeURIComponent(cur)}/build/audio/narration.wav?t=${t}" style="width:100%"></audio>
-      <table><tr><th style="width:110px">장면</th><th>듣기</th><th style="width:80px">판단</th></tr>${rows}</table>` : '<p class="muted">아직 생성 전</p>'}
+      ${sttBar()}
+      <table><tr><th style="width:110px">장면</th><th>듣기</th><th style="width:230px">다시 듣기 (음성 인식)</th><th style="width:80px">판단</th></tr>${rows}</table>` : '<p class="muted">아직 생성 전</p>'}
     <p class="muted">확인할 것: 발음(영어·숫자), 문장 끝 억양, 장면 간 톤 차이. 모두 '좋음'이어야 승인됩니다.</p>${gate("narration")}</div>
     ${voiceCard()}`;
+}
+function sttBar() {
+  const r = view.stt;
+  const state = !r ? '<span class="muted">아직 검사 안 함</span>'
+    : `<span class="muted">${esc(r.checked.replace("T", " "))} · ${esc(r.engine)} ${esc(r.model)} · ${r.flagged.length ? `확인할 장면 ${r.flagged.length}개 (${r.flagged.map(esc).join(", ")}) — '다시'로 표시됨` : "모든 장면 일치"}${r.stale ? " · <b>나레이션이 바뀌어 다시 검사 필요</b>" : ""}</span>`;
+  return `<div class="row" style="margin:8px 0"><button onclick="act('stt_check',{})">다시 듣기 검사</button> ${state}</div>
+    <p class="muted" style="margin-top:0">음성 인식으로 나레이션을 되읽어 대본과 대조합니다 — 이름·숫자·영어 오독, 빠진 말, 잘린 문장. 인식기도 틀릴 수 있으니 직접 들어 보고 맞으면 '맞게 들림'.</p>`;
 }
 /* my voice as narrator: one recording → Fish Audio clone (MCP, paid TTS) and/or local Qwen profile (free) */
 let voiceSample = "";
@@ -536,12 +562,14 @@ function pVisuals() {
       ${sDirty ? '<span class="muted" style="color:var(--warn)">저장하지 않은 변경 — 저장하면 아래 구성표가 이 스타일 기준으로 바뀝니다</span>' : '<span class="muted">저장됨</span>'}
       ${s.engine === "skill" ? `<button onclick="analyzeStyle('${esc(s.id)}')" style="margin-left:auto">${s.draft ? "Claude로 옵션 분석" : "옵션 다시 분석"}</button>` : ""}</div>
     ${refBox()}
+    ${musicBox(s)}
   </div>
   <div class="card">
     <h3 style="margin-top:0">③ 장면 구성표 — 렌더될 화면 미리 정하기</h3>
     ${sDirty ? '<p class="warnbox">②에서 고른 스타일을 먼저 저장하세요. 지금 표는 저장된 스타일 기준입니다.</p>' : ""}
     <p class="muted">${esc(p.note || "")} <b class="legend userset">★ 굵은 칸</b> = 직접 고친 값(그대로 반영) · 나머지 = 스타일 기본안 · <span class="legend changed">왼쪽 선</span> = 마지막 제작 이후 바뀐 행</p>
     ${planTable(p)}
+    ${storyboardBox(s)}
     <div class="row" style="margin-top:10px">
       <button class="primary" onclick="buildPlan('full')" ${sDirty ? "disabled" : ""}>이 구성으로 장면 제작</button>
       <button id="planChanged" onclick="buildPlan('changed')" ${!p.built || !nChanged || sDirty ? "disabled" : ""}>바뀐 행만 반영${p.built ? ` (${nChanged})` : ""}</button>
@@ -561,12 +589,63 @@ function pVisuals() {
     ${gate("visuals")}
   </div>`;
 }
+/* music & beats: one track per project, analysed by tools/beats.py; build prompts snap motion to its beats */
+function musicBox(s) {
+  const m = view.music || {}, b = m.beats;
+  const rule = s.narration === "none"
+    ? "이 스타일은 나레이션이 없어 <b>모든 컷·글자 등장을 박에</b> 맞추고 영상 길이를 음원 길이에 맞춥니다."
+    : "나레이션이 장면 길이를 정하므로 <b>장면 경계는 그대로</b> 두고, 장면 안의 등장·강조·전환 시작만 ±0.3초 안의 박에 맞춥니다.";
+  return `<details class="musicbox" ${m.file ? "open" : ""} style="margin-top:10px"><summary><b>음악·비트</b> <span class="muted">— 배경 음악을 넣고 움직임을 박자에 맞추기</span></summary>
+    <p class="muted">${rule} 음원 파일은 git 에 올라가지 않고 분석 결과(beats.json)만 남습니다. 무료 음원(예: Pixabay Music)은 라이선스를 확인하세요.</p>
+    <div class="row">${m.file ? `<span>🎵 ${esc(m.file)} <span class="muted">(${m.mb}MB)</span> <button class="mini" onclick="act('delete_music',{})">✕</button></span>`
+      : `<button onclick="$('musicPick').click()">음원 올리기 (mp3·wav·m4a)</button>`}
+      <input type="file" id="musicPick" accept=".mp3,.wav,.m4a,.aac,.flac,.ogg" style="display:none" onchange="uploadMusic(this.files)">
+      <input id="bpmHint" value="${esc(m.bpm_hint || "")}" placeholder="BPM 힌트 (알면, 예: 92)" style="width:170px">
+      <button class="primary" onclick="act('analyze_music',{bpm_hint:$('bpmHint').value.trim()})" ${m.file ? "" : "disabled"}>${b ? "다시 분석" : "박자 분석"}</button></div>
+    ${b ? `<p style="margin:8px 0 0"><b>${b.bpm} BPM</b> · 한 박 ${b.beat_seconds}초 · 첫 박 ${b.first_beat}초 · 박 ${b.n_beats}개 · 마디 ${b.n_bars}개 · 악센트 ${b.n_accents}개 · 길이 ${b.seconds}초
+      <span class="muted">— 템포가 두 배·절반으로 잡혔으면 BPM 힌트를 넣고 다시 분석</span></p>` : ""}</details>`;
+}
+async function uploadMusic(files) {
+  const f = files[0]; if (!f) return;
+  const r = await fetch(`/api/lectures/${encodeURIComponent(cur)}/upload_music`, { method: "POST",
+    headers: { "Content-Type": "application/octet-stream", "X-Filename": encodeURIComponent(f.name) }, body: f });
+  if (!r.ok) { toast((await r.json()).error || "업로드 실패"); return; }
+  await act("analyze_music", { bpm_hint: $("bpmHint")?.value.trim() || "" });
+}
+/* storyboard: Claude plans first (no files, no paid calls), the user approves, then the build follows it */
+function storyboardBox(s) {
+  const sb = view.storyboard || {}, paid = !!(s.paid);
+  const state = !sb.text ? '<span class="muted">아직 없음</span>'
+    : sb.approved ? `<span class="badge approved">승인됨</span> <span class="muted">${esc((sb.approved_at || "").replace("T", " "))} · 장면 제작 지시에 포함</span>`
+    : sb.stale_since ? '<span class="badge stale">대본·구성표·스타일이 바뀜 — 다시 만들거나 확인 후 승인</span>'
+    : '<span class="badge qawarn">승인 대기</span>';
+  return `<details class="sbbox" ${sb.text ? "open" : ""} style="margin-top:12px"><summary><b>스토리보드 먼저</b> ${state}</summary>
+    <p class="muted">Claude 가 장면을 만들기 전에 계획만 씁니다 — 장면별 시간·카메라·전환·관통 요소, 효과 파라미터, 에셋 목록·예상 크레딧, 합격 조건.
+      파일 생성·명령 실행·유료 호출은 하지 않습니다. ${paid ? "<b>유료 이미지를 쓰는 스타일이라 권장합니다.</b>" : "오래 걸리는 제작 전에 방향을 확인하세요."}
+      승인하면 장면 제작이 이 계획을 따릅니다.</p>
+    <div class="row"><button onclick="act('make_storyboard',{})">${sb.text ? "스토리보드 다시 만들기" : "스토리보드 만들기 (Claude)"}</button>
+      ${sb.text && !sb.approved ? `<button class="ok" onclick="act('approve_storyboard',{})">이 스토리보드 승인</button>` : ""}
+      <span class="muted"><code>lectures/${esc(cur)}/storyboard.md</code> — 고칠 점은 파일을 직접 고치거나 구성표 '수정 요청'에 적고 다시 만드세요</span></div>
+    ${sb.text ? `<pre style="margin-top:8px;max-height:420px;overflow:auto">${esc(sb.text)}</pre>` : ""}</details>`;
+}
 /* reference style: link + screenshots → style-ref/brief.md, used by every style's prompt */
 function refBox() {
   const r = view.ref;
   const shots = r.images.map((n) => `<figure><img src="/media/${encodeURIComponent(cur)}/style-ref/${encodeURIComponent(n)}?t=${Date.now()}" alt="">
     <figcaption>${esc(n)} <button class="mini" onclick="delRef('${esc(n)}')">✕</button></figcaption></figure>`).join("");
-  return `<details class="refbox" ${r.url || r.images.length || r.brief ? "open" : ""}><summary><b>참고 스타일</b> <span class="muted">— 비슷한 느낌으로 만들 영상의 링크와 스크린샷</span></summary>
+  const ms = r.measure;
+  const measureBox = `<div class="refvideo"><h4 style="margin:10px 0 4px">참고 영상 측정 <span class="muted">— 숫자로 재서 효과 사양표·합격 조건의 근거로</span></h4>
+    <p class="muted">영상 파일(mp4·mov·webm, 200MB 이하)을 올리면 전환 시점·방식, 실효 fps(스톱모션 여부), 움직임 양, 그레인, 팔레트를 잽니다.
+      YouTube 는 먼저 파일로 받아 두세요. 영상과 캡처는 git 에 올라가지 않고 수치만 남습니다.</p>
+    <div class="row">${r.video ? `<span>🎞 ${esc(r.video)} <span class="muted">(${r.video_mb}MB)</span> <button class="mini" onclick="delRef('${esc(r.video)}')">✕</button></span>`
+      : `<button onclick="$('refVidPick').click()">영상 파일 올리기</button>`}
+      <input type="file" id="refVidPick" accept=".mp4,.mov,.webm,.mkv,.m4v" style="display:none" onchange="uploadRef(this.files)">
+      <input id="refRange" value="${esc(r.range || "")}" placeholder="구간 (예: 0:00-5:00, 비우면 전체)" style="width:220px">
+      <button class="primary" onclick="measureRef()" ${r.video ? "" : "disabled"}>${ms ? "다시 측정" : "측정하기"}</button>
+      ${ms && ms.at ? `<span class="muted">${esc(ms.at.replace("T", " "))} 측정</span>` : ""}</div>
+    ${ms ? `<div class="gallery">${ms.sheets.map((x) => `<figure><a href="/media/${encodeURIComponent(cur)}/${x}" target="_blank"><img src="/media/${encodeURIComponent(cur)}/${x}?t=${Date.now()}" alt=""></a><figcaption>${esc(x.split("/").pop())}</figcaption></figure>`).join("")}</div>
+      <details><summary>측정 스펙 시트 (spec.md)</summary><pre>${esc(ms.spec)}</pre></details>` : ""}</div>`;
+  return `<details class="refbox" ${r.url || r.images.length || r.brief || r.video ? "open" : ""}><summary><b>참고 스타일</b> <span class="muted">— 비슷한 느낌으로 만들 영상의 링크·스크린샷·영상 파일</span></summary>
     <p class="muted">예: TED-Ed 애니메이션. 링크만으로는 화면이 거의 읽히지 않는 사이트가 많아 <b>스크린샷 2~3장</b>을 함께 넣으세요.
       Claude가 색·도형·인물 비율·움직임을 <b>스타일 메모</b>로 정리해 장면 제작과 이미지 생성에 반영합니다.
       참고 영상의 캐릭터·장면은 쓰지 않습니다(TED 는 CC BY-NC-ND).</p>
@@ -577,7 +656,8 @@ function refBox() {
       <b>스크린샷 추가</b> (png·jpg·webp, 여러 장) — 클릭 또는 끌어다 놓기</div>
     <input type="file" id="refPick" accept=".png,.jpg,.jpeg,.webp" multiple style="display:none" onchange="uploadRef(this.files)">
     ${shots ? `<div class="gallery">${shots}</div>` : ""}
-    <div class="row" style="margin-top:8px"><button class="primary" onclick="makeBrief()" ${r.url || r.images.length ? "" : "disabled"}>${r.brief ? "스타일 메모 다시 만들기" : "스타일 메모 만들기 (Claude)"}</button>
+    ${measureBox}
+    <div class="row" style="margin-top:8px"><button class="primary" onclick="makeBrief()" ${r.url || r.images.length || ms ? "" : "disabled"}>${r.brief ? "스타일 메모 다시 만들기" : "스타일 메모 만들기 (Claude)"}</button>
       ${r.made_at ? `<span class="muted">${esc(r.made_at.replace("T", " "))} 작성 · 장면 제작 지시에 자동 포함</span>` : ""}</div>
     ${r.brief ? `<pre style="margin-top:8px">${esc(r.brief)}</pre>` : ""}</details>`;
 }
@@ -587,11 +667,16 @@ async function uploadRef(files) {
     const r = await fetch(`/api/lectures/${encodeURIComponent(cur)}/upload_ref`, { method: "POST",
       headers: { "Content-Type": "application/octet-stream", "X-Filename": encodeURIComponent(f.name) }, body: f });
     if (!r.ok) { toast((await r.json()).error || "업로드 실패"); break; }
+    if (/\.(mp4|mov|webm|mkv|m4v)$/i.test(f.name)) toast("참고 영상 저장됨 — '측정하기'를 누르세요");
   }
   if ($("refUrl")?.value.trim() && $("refUrl").value.trim() !== view.ref.url) await act("save_ref", { url: $("refUrl").value.trim() });
   await refresh();
 }
 async function delRef(name) { await act("delete_ref", { name }); }
+async function measureRef() {
+  await api(`/api/lectures/${encodeURIComponent(cur)}/save_ref`, { url: $("refUrl").value.trim(), range: $("refRange").value.trim() });
+  await act("measure_ref", {});
+}
 async function makeBrief() {
   if ($("refUrl").value.trim() !== view.ref.url) await api(`/api/lectures/${encodeURIComponent(cur)}/save_ref`, { url: $("refUrl").value.trim() });
   await act("make_brief", {});
@@ -645,14 +730,46 @@ async function importSkill(fileList) {
 }
 
 /* 6 render */
+const QA_LABEL = { pass: "통과", warn: "확인", fail: "문제" };
+const QA_NAME = { blank: "빈 화면", freeze: "멈춤", loudness: "음량", readtime: "읽기 시간" };
+function qaBadge(q) {
+  if (!q) return '<span class="muted">—</span>';
+  const cls = { pass: "approved", warn: "qawarn" }[q.overall] || "stale";
+  return `<span class="badge ${cls}" title="${esc((q.messages || []).join("\n"))}">${QA_LABEL[q.overall] || esc(q.overall)}</span>`;
+}
+function refCompareLine(v) {
+  const c = v && v.ref_compare;
+  if (!c) return "";
+  const what = [...(c.metrics || []), c.motion_bins_off ? `시간대별 움직임 ${c.motion_bins_off}구간` : ""].filter(Boolean).join(", ");
+  return c.off ? `<p class="muted" style="color:var(--warn)">참고 영상 대조: ±${Math.round(c.tolerance * 100)}% 를 넘은 항목 ${c.off}개 — ${esc(what)} · 상세 renders/${esc(v.file)}.compare.md</p>`
+    : `<p class="muted">참고 영상 대조: 모든 항목이 ±${Math.round(c.tolerance * 100)}% 안</p>`;
+}
+function beatLine(v) {
+  const b = v && v.beat_sync;
+  if (!b) return "";
+  const strict = (styleById(selStyle().id) || {}).narration === "none";
+  const color = strict && b.status !== "pass" ? "color:var(--warn)" : "";
+  return `<p class="muted" style="${color}">박 맞춤 (${b.bpm} BPM): ${esc(b.message)}${strict ? "" : " — 나레이션 영상은 장면 경계가 나레이션을 따르므로 참고값"} · 상세 renders/${esc(v.file)}.beats.json</p>`;
+}
+function qaBox(v) {
+  return qaBoxInner(v) + refCompareLine(v) + beatLine(v);
+}
+function qaBoxInner(v) {
+  const q = v && v.qa;
+  if (!q) return v ? '<p class="muted">자동 검사 기록 없음 (이 기능 전에 만든 버전)</p>' : "";
+  const items = Object.keys(QA_NAME).filter((k) => q[k]).map((k) => `${QA_NAME[k]} ${QA_LABEL[q[k]] || q[k]}`).join(" · ");
+  if (q.overall === "pass") return `<p class="muted">자동 검사 통과 — ${items} · 음량 −14 LUFS 로 맞춤</p>`;
+  return `<details class="warnbox" open><summary>자동 검사: ${QA_LABEL[q.overall]} — 승인 전에 확인하세요</summary><ul>${
+    (q.messages || []).map((m) => `<li>${esc(m)}</li>`).join("")}</ul><p class="muted">${items} · 상세: renders/${esc(v.file)}.qa.json</p></details>`;
+}
 function pRender() {
   const vs = view.renders;
   const last = vs[vs.length - 1];
   return `<div class="card"><h3 style="margin-top:0">렌더 (버전 관리)</h3>
     <div class="row"><input id="rnote" placeholder="이번 버전에서 바뀐 점" style="flex:1"><button class="primary" onclick="act('render',{note:$('rnote').value})">새 버전 렌더</button></div>
-    ${last ? `<h3>${esc(last.version)} · ${esc(last.note)}</h3><video controls src="/media/${encodeURIComponent(cur)}/renders/${esc(last.file)}"></video>` : '<p class="muted">아직 렌더 없음</p>'}
-    <table><tr><th>버전</th><th>날짜</th><th>커밋</th><th>길이</th><th>메모</th></tr>${vs.slice().reverse().map((v) =>
-      `<tr><td><a href="/media/${encodeURIComponent(cur)}/renders/${esc(v.file)}" target="_blank">${esc(v.version)}</a></td><td>${esc(v.created.slice(0, 10))}</td><td>${esc(v.source.commit)}${v.source.dirty ? "*" : ""}</td><td>${v.seconds ?? ""}s</td><td>${esc(v.note)}</td></tr>`).join("")}</table>
+    ${last ? `<h3>${esc(last.version)} · ${esc(last.note)}</h3><video controls src="/media/${encodeURIComponent(cur)}/renders/${esc(last.file)}"></video>${qaBox(last)}` : '<p class="muted">아직 렌더 없음</p>'}
+    <table><tr><th>버전</th><th>날짜</th><th>커밋</th><th>길이</th><th>검사</th><th>메모</th></tr>${vs.slice().reverse().map((v) =>
+      `<tr><td><a href="/media/${encodeURIComponent(cur)}/renders/${esc(v.file)}" target="_blank">${esc(v.version)}</a></td><td>${esc(v.created.slice(0, 10))}</td><td>${esc(v.source.commit)}${v.source.dirty ? "*" : ""}</td><td>${v.seconds ?? ""}s</td><td>${qaBadge(v.qa)}</td><td>${esc(v.note)}</td></tr>`).join("")}</table>
     <p class="muted">* = 커밋 안 된 수정으로 렌더. 다시 만들 수 있게 하려면 먼저 git 커밋.</p>${gate("render")}</div>`;
 }
 
