@@ -150,6 +150,20 @@ def scene_text(sc: dict) -> str:
     return (sc.get("narration") or sc.get("text") or "").strip()
 
 
+def pace_warning(text: str, seconds: float) -> str:
+    """Flag a take whose length doesn't fit its text: TTS sometimes rambles on (or stops early).
+    Korean narration runs about 4-7 syllables a second; Latin letters count as a third of a syllable."""
+    units = sum(1 for c in text if "가" <= c <= "힣" or c.isdigit()) + sum(1 for c in text if c.isascii() and c.isalpha()) / 3
+    if units < 8 or seconds <= 0:
+        return ""
+    rate = units / seconds
+    if rate < 2.5:
+        return f"글자 수에 비해 너무 김 ({seconds:.1f}초, 초당 {rate:.1f}음절) — 말이 늘어지거나 끝에 군소리"
+    if rate > 10:
+        return f"글자 수에 비해 너무 짧음 ({seconds:.1f}초, 초당 {rate:.1f}음절) — 문장이 잘렸을 수 있음"
+    return ""
+
+
 def fish_file(out: Path, sid: str, h: str) -> Path:
     return out / "fish" / f"{sid}-{h}.mp3"
 
@@ -157,6 +171,44 @@ def fish_file(out: Path, sid: str, h: str) -> Path:
 def scene_hash(sc: dict, key: str) -> str:
     raw = json.dumps([scene_text(sc), sc.get("instruct", ""), key], ensure_ascii=False)
     return hashlib.sha1(raw.encode("utf-8")).hexdigest()[:12]
+
+
+def plan(script: dict, out: Path, backend: str, speaker: str | None = None, voice: str | None = None,
+         fish_voice: str | None = None, scene_speakers: dict | None = None, language: str | None = None) -> dict:
+    """Which scenes the next (non --force) run will synthesize, and why — same cache rule as main(),
+    without loading a model. reasons per scene: "new" (no audio yet), "voice" (speaker / backend / voice
+    profile changed), "text" (narration or instruct changed). Studio shows this on the generate button."""
+    a = argparse.Namespace(backend=backend, language=language, speaker=speaker, voice=voice,
+                           fish_voice=fish_voice or "", scene_speakers=scene_speakers or {}, out=out)
+    be = Backend(a, script)
+    try:
+        old = json.loads((out / "manifest.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        old = {}
+    old_by_id = {s["id"]: s for s in old.get("scenes", [])}
+    pending, total = [], 0
+    for sc in script.get("scenes", []):
+        if not scene_text(sc):
+            continue
+        total += 1
+        key = be.settings_key(sc)
+        prev = old_by_id.get(sc["id"])
+        if not prev or not prev.get("hash") or not (out / f"{sc['id']}.wav").exists():
+            pending.append({"id": sc["id"], "reasons": ["new"]})
+            continue
+        if prev["hash"] == scene_hash(sc, key):
+            continue
+        # rebuild the key the old take was made with (manifest keeps backend, per-scene speaker, voice)
+        ob = old.get("backend")
+        who = {"customvoice": prev.get("speaker") or old.get("speaker"), "silent": "-"}.get(ob, old.get("voice"))
+        old_key = f"{ob}|{who}|{old.get('language')}"
+        reasons = []
+        if old_key != key:
+            reasons.append("voice")
+        if scene_hash(sc, old_key) != prev["hash"]:   # text / instruct differ too (or old key not recoverable)
+            reasons.append("text")
+        pending.append({"id": sc["id"], "reasons": reasons or ["text"]})
+    return {"backend": be.kind, "total": total, "pending": pending}
 
 
 def main() -> None:
@@ -177,8 +229,13 @@ def main() -> None:
     ap.add_argument("--lead", type=float, default=0.3, help="silence before the first word of each scene")
     ap.add_argument("--min", type=float, default=3.0, help="minimum scene length in seconds")
     ap.add_argument("--force", nargs="*", metavar="ID", help="regenerate these scene ids (no ids = all)")
+    ap.add_argument("--plan", action="store_true", help="print which scenes would be made and why (JSON), make nothing")
     a = ap.parse_args()
     a.scene_speakers = dict(x.split("=", 1) for x in a.scene_speaker if "=" in x)
+    if a.plan:
+        print(json.dumps(plan(json.loads(a.scenes.read_text(encoding="utf-8")), a.out, a.backend, a.speaker, a.voice,
+                              a.fish_voice, a.scene_speakers, a.language), ensure_ascii=False, indent=2))
+        return
 
     script = json.loads(a.scenes.read_text(encoding="utf-8"))
     scenes = script["scenes"]
@@ -213,7 +270,12 @@ def main() -> None:
                 samples = librosa.resample(np.asarray(samples, dtype=np.float32), orig_sr=sr, target_sr=SR)
             write_wav(wav_path, samples, SR)
             made += 1
-            print(f"  made {sc['id']:<8} {time.time() - t0:5.1f}s  {(spk + ' · ') if spk else ''}{text[:40]}", flush=True)
+            secs = len(samples) / SR
+            print(f"  made {sc['id']:<8} 음성 {secs:4.1f}초 (생성 {time.time() - t0:4.1f}초)  "
+                  f"{(spk + ' · ') if spk else ''}{text[:40]}", flush=True)
+            warn = pace_warning(text, secs)
+            if warn:
+                print(f"  WARN {sc['id']:<8} {warn} — 들어 보고 이상하면 이 장면만 다시 생성(--force {sc['id']})", flush=True)
         elif text:
             skipped += 1
             print(f"  skip {sc['id']:<8} (cached)", flush=True)
@@ -223,7 +285,7 @@ def main() -> None:
             voice_seconds = len(data) / SR
         pause = float(sc.get("pause_after", a.pause))
         entries.append({"id": sc["id"], "file": wav_path.name if text else None, "hash": h if text else None, "speaker": spk,
-                        "voice_seconds": round(voice_seconds, 3),
+                        "voice_seconds": round(voice_seconds, 3), "warn": pace_warning(text, voice_seconds) if text else "",
                         "duration": round(max(a.min, a.lead + voice_seconds + pause), 3)})
 
     # lay every scene on one track at its start

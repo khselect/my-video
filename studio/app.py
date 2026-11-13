@@ -760,6 +760,25 @@ def ref_hint(slug: str) -> str:
     return text
 
 
+# ---- narration plan: which scenes "생성" will (re)make and why — tools/narrate.py plan(), same cache key
+
+def narration_plan(slug: str, st: dict, cfg: dict) -> dict | None:
+    script = read_json(lecture_dir(slug) / "scenes.json")
+    if not script:
+        return None
+    try:
+        if str(TOOLS) not in sys.path:
+            sys.path.insert(0, str(TOOLS))
+        import narrate   # stdlib-only at import time; the TTS model is loaded only when synthesizing
+        backend = cfg.get("narrate_backend", "customvoice")
+        return narrate.plan(script, lecture_dir(slug) / "build" / "audio", backend,
+                            speaker=cfg.get("speaker"), voice=cfg.get("voice"),
+                            fish_voice=fish_state().get("voice_id") if backend == "fish" else None,
+                            scene_speakers=(st.get("scene_speakers") or {}) if backend == "customvoice" else {})
+    except Exception as e:   # never break the page over a preview
+        return {"error": str(e)}
+
+
 # ---- narration listen-back: tools/stt_check.py → build/audio/stt.json (+ accepted scenes in lecture.json)
 
 def stt_view(slug: str, st: dict) -> dict | None:
@@ -1024,6 +1043,7 @@ def lecture_view(slug: str) -> dict:
         "ref": ref_view(slug),
         "music": music_view(slug),
         "stt": stt_view(slug, st),
+        "narration_plan": narration_plan(slug, st, load_config()),
         "storyboard": {**(st.get("storyboard") or {}),
                        "text": storyboard_path(slug).read_text(encoding="utf-8") if storyboard_path(slug).exists() else ""},
         "style_assets": style_assets(d, style),

@@ -349,27 +349,45 @@ function sttCell(id) {
 const BACKENDS = [["customvoice", "Qwen 기본 화자 (로컬·무료)"], ["clone", "Qwen 내 목소리 (로컬·무료)"],
   ["fish", "Fish Audio 내 목소리 (유료 크레딧)"], ["silent", "길이만 — 시험용"]];
 const backendOptions = (sel) => BACKENDS.map(([v, d]) => `<option value="${v}" ${v === sel ? "selected" : ""}>${v} — ${d}</option>`).join("");
+/* what "생성" will (re)make and why — from the server (tools/narrate.py plan(), same cache key as generation) */
+const REASON = { new: "새 장면", voice: "화자 변경", text: "문장 변경" };
+function narrPlan() {
+  const p = view.narration_plan;
+  if (!p || p.error) return null;
+  return { ...p, byId: Object.fromEntries(p.pending.map((x) => [x.id, x.reasons])) };
+}
+function narrateLabel(p) {
+  if (!p) return { text: "생성 (바뀐 장면만)", off: false };
+  const n = p.pending.length;
+  if (!p.total) return { text: "생성할 장면 없음", off: true };
+  if (!n) return { text: "모두 최신 — 다시 만들 장면 없음", off: true };
+  if (n === p.total && p.pending.every((x) => x.reasons.includes("new"))) return { text: `전체 생성 (${n}개 장면)`, off: false };
+  const cnt = {};
+  p.pending.forEach((x) => x.reasons.forEach((r) => (cnt[r] = (cnt[r] || 0) + 1)));
+  return { text: `생성 — ${n}개 장면 (${Object.entries(cnt).map(([r, k]) => `${REASON[r] || r} ${k}`).join(" · ")})`, off: false };
+}
 function pNarration() {
   const m = view.audio, t = Date.now(), cfg = view.config || CONFIG;
   const backend = cfg.narrate_backend, cv = backend === "customvoice";
   const made = Object.fromEntries((m?.scenes || []).map((x) => [x.id, x]));
   const scenes = (view.scenes || {}).scenes || [];
-  // scenes the listen-back check flagged start as "다시" unless a person already judged them
-  for (const id of (view.stt && !view.stt.stale ? view.stt.flagged : [])) if (!review[id]) review[id] = "redo";
+  const plan = narrPlan(), lab = narrateLabel(plan);
+  const flagged = narrFlagged();
   const rows = scenes.map((sc) => {
     const a = made[sc.id], own = view.scene_speakers[sc.id] || "";
     const want = own || cfg.speaker;
     const madeWith = a && (m.backend === "customvoice" ? (a.speaker || m.speaker) : m.backend);
-    const stale = a && a.file && (m.backend !== backend || (cv && madeWith !== want));
+    const why = plan ? (plan.byId[sc.id] || []) : null;
+    const stale = a && a.file && (why ? why.length > 0 : (m.backend !== backend || (cv && madeWith !== want)));
+    const staleText = why && why.length ? `${why.map((r) => REASON[r] || r).join("·")} → 생성 시 다시 만듦` : "바뀜 — 생성 시 다시 만듦";
     const pick = `<select class="mini-select" ${cv ? "" : "disabled"} onchange="setSceneSpeaker('${esc(sc.id)}', this.value)">
         <option value="">기본 (${esc(cfg.speaker)})</option>${SPEAKERS.map(([v, d]) => `<option value="${v}" ${v === own ? "selected" : ""}>${v} — ${esc(d.split(" (")[0])}</option>`).join("")}</select>`;
     return `<tr><td><b>${esc(sc.id)}</b>${a ? `<br><span class="muted">${a.start}s · ${a.duration}s</span>` : ""}</td>
       <td>${a?.file ? `<audio controls preload="none" src="/media/${encodeURIComponent(cur)}/build/audio/${esc(a.file)}?t=${t}" style="width:100%"></audio>` : '<span class="muted">아직 생성 전</span>'}
-        <div class="muted">${esc(sc.narration || sc.text || "")}</div></td>
-      <td>${pick}${a?.file ? `<div class="muted">만든 화자: ${esc(madeWith || "")}</div>` : ""}${stale ? '<span class="badge editing">바뀜 — 생성 시 다시 만듦</span>' : ""}</td>
+        <div class="muted">${esc(sc.narration || sc.text || "")}</div>${a?.warn && !stale ? `<span class="badge editing" title="TTS가 말을 늘이거나 끊을 때 생깁니다">⚠ ${esc(a.warn)}</span>` : ""}</td>
+      <td>${pick}${a?.file ? `<div class="muted">만든 화자: ${esc(madeWith || "")}</div>` : ""}${stale ? `<span class="badge editing">${esc(staleText)}</span>` : ""}</td>
       <td>${a?.file ? sttCell(sc.id) : '<span class="muted">—</span>'}</td>
-      <td style="white-space:nowrap">${a?.file ? `<label style="display:inline"><input type="radio" name="r_${esc(sc.id)}" value="ok" ${review[sc.id] === "ok" ? "checked" : ""} onchange="review['${esc(sc.id)}']='ok'" style="width:auto"> 좋음</label><br>
-        <label style="display:inline"><input type="radio" name="r_${esc(sc.id)}" value="redo" ${review[sc.id] === "redo" ? "checked" : ""} onchange="review['${esc(sc.id)}']='redo'" style="width:auto"> 다시</label>` : ""}</td></tr>`;
+      <td style="white-space:nowrap">${a?.file ? `<button class="mini" title="이 장면만 새로 녹음 (같은 문장·화자라도 다시 만듦)" onclick="redoScenes(['${esc(sc.id)}'])">다시 생성</button>` : ""}</td></tr>`;
   }).join("");
   const vs = styleById(view.style.id);
   const note = vs?.narration === "none" ? `<p class="warnbox">5단계에서 고른 스타일 '${esc(vs.name)}'은(는) 나레이션을 쓰지 않습니다. 생성하지 않고 바로 승인할 수 있습니다.</p>` : "";
@@ -381,21 +399,21 @@ function pNarration() {
       <div><label>기본 화자 ${cv ? "" : '<span class="muted">(customvoice 에서만)</span>'}</label>
         ${cv ? `<select onchange="setVoice({speaker:this.value})">${speakerOptions(cfg.speaker)}</select>` : `<div style="padding:8px 0">${who}</div>`}</div></div>
     <p class="muted">방식·기본 화자는 왼쪽 '이 PC 설정'과 같은 값입니다 (모든 프로젝트에 적용). 장면마다 다른 화자는 아래 표의 '화자'에서 고르세요 (이 프로젝트만, customvoice).</p>
-    <div class="row"><button class="primary" onclick="narrate()">생성 (바뀐 장면만)</button>
-    <button onclick="redo()">'다시' 표시한 장면만 재생성</button></div>
-    <p class="muted">장면당 수십 초 걸립니다. 화자나 문장이 바뀐 장면만 다시 만듭니다.</p>
+    <div class="row"><button class="primary" onclick="narrate()" ${lab.off ? "disabled" : ""}>${esc(lab.text)}</button>
+    ${flagged.length ? `<button onclick="redoScenes(${esc(JSON.stringify(flagged))})" title="음성 인식 검사에서 다르게 들렸거나, 글자 수에 비해 길이가 이상한 장면">걸린 장면 다시 생성 (${flagged.length}: ${flagged.map(esc).join(", ")})</button>` : ""}</div>
+    <p class="muted">장면당 수십 초 걸립니다. 화자를 여러 장면에서 바꾼 뒤 한 번에 누르세요 — 화자·방식이나 문장(3단계)·말투 지시가 바뀐 장면만 다시 만들고, 나머지는 그대로 씁니다.</p>
     ${m ? `<p>총 ${m.total_duration}초 · ${esc(m.backend)}</p>
       <audio controls preload="none" src="/media/${encodeURIComponent(cur)}/build/audio/narration.wav?t=${t}" style="width:100%"></audio>
       ${sttBar()}` : ""}
-    ${scenes.length ? `<table><tr><th style="width:90px">장면</th><th>듣기</th><th style="width:190px">화자</th><th style="width:210px">다시 듣기 (음성 인식)</th><th style="width:70px">판단</th></tr>${rows}</table>`
+    ${scenes.length ? `<table><tr><th style="width:90px">장면</th><th>듣기</th><th style="width:190px">화자</th><th style="width:210px">다시 듣기 (음성 인식)</th><th style="width:90px"></th></tr>${rows}</table>`
       : '<p class="muted">3단계 대본이 있어야 장면이 보입니다.</p>'}
-    <p class="muted">확인할 것: 발음(영어·숫자), 문장 끝 억양, 장면 간 톤 차이. 모두 '좋음'이어야 승인됩니다.</p>${gate("narration")}</div>
+    <p class="muted">확인할 것: 발음(영어·숫자), 문장 끝 억양, 장면 간 톤 차이. 마음에 안 드는 장면은 '다시 생성'. 바뀐 장면을 모두 생성하면 승인할 수 있습니다.</p>${gate("narration")}</div>
     ${voiceCard()}`;
 }
 function sttBar() {
   const r = view.stt;
   const state = !r ? '<span class="muted">아직 검사 안 함</span>'
-    : `<span class="muted">${esc(r.checked.replace("T", " "))} · ${esc(r.engine)} ${esc(r.model)} · ${r.flagged.length ? `확인할 장면 ${r.flagged.length}개 (${r.flagged.map(esc).join(", ")}) — '다시'로 표시됨` : "모든 장면 일치"}${r.stale ? " · <b>나레이션이 바뀌어 다시 검사 필요</b>" : ""}</span>`;
+    : `<span class="muted">${esc(r.checked.replace("T", " "))} · ${esc(r.engine)} ${esc(r.model)} · ${r.flagged.length ? `확인할 장면 ${r.flagged.length}개 (${r.flagged.map(esc).join(", ")}) — 들어 보고 '다시 생성' 또는 '맞게 들림'` : "모든 장면 일치"}${r.stale ? " · <b>나레이션이 바뀌어 다시 검사 필요</b>" : ""}</span>`;
   return `<div class="row" style="margin:8px 0"><button onclick="act('stt_check',{})">다시 듣기 검사</button> ${state}</div>
     <p class="muted" style="margin-top:0">음성 인식으로 나레이션을 되읽어 대본과 대조합니다 — 이름·숫자·영어 오독, 빠진 말, 잘린 문장. 인식기도 틀릴 수 있으니 직접 들어 보고 맞으면 '맞게 들림'.</p>`;
 }
@@ -403,13 +421,17 @@ async function setVoice(body) {
   const j = await api(`/api/lectures/${encodeURIComponent(cur)}/set_voice`, body);
   CONFIG = j.config; view.config = j.config;
   if ($("cfg_speaker")) { $("cfg_speaker").innerHTML = speakerOptions(j.config.speaker); $("cfg_narrate_backend").value = j.config.narrate_backend; }
-  toast(body.speaker ? `기본 화자: ${body.speaker} (모든 프로젝트)` : body.narrate_backend ? `나레이션 방식: ${body.narrate_backend}` : "저장됨");
   await refresh();
+  const n = narrPlan()?.pending.length;
+  toast((body.speaker ? `기본 화자: ${body.speaker} (모든 프로젝트)` : body.narrate_backend ? `나레이션 방식: ${body.narrate_backend}` : "저장됨") +
+    (n ? ` — '생성'을 누르면 ${n}개 장면을 다시 만듭니다` : ""));
 }
 async function setSceneSpeaker(sid, spk) {
   const map = { ...view.scene_speakers }; if (spk) map[sid] = spk; else delete map[sid];
   await api(`/api/lectures/${encodeURIComponent(cur)}/set_voice`, { scene_speakers: map });
-  toast(spk ? `${sid} 화자: ${spk}` : `${sid}: 기본 화자로`); await refresh();
+  await refresh();
+  const again = (narrPlan()?.byId || {})[sid];
+  toast((spk ? `${sid} 화자: ${spk}` : `${sid}: 기본 화자로`) + (again ? " — '생성'을 누르면 이 장면만 다시 만듭니다" : ""));
 }
 /* my voice as narrator: one recording → Fish Audio clone (MCP, paid TTS) and/or local Qwen profile (free) */
 let voiceSample = "";
@@ -461,14 +483,20 @@ function fishOk(backend, ids) {
     `바뀐 장면만 생성 — 최대 약 ${b.toLocaleString()} 크레딧 (텍스트 ${b.toLocaleString()}바이트, 한글 1자 ≈ 3).\n잔액이 모자라면 생성하지 않고 멈춥니다. 진행할까요?`);
 }
 function narrate() {
-  const backend = (view.config || CONFIG).narrate_backend;
-  if (!fishOk(backend)) return;
+  const backend = (view.config || CONFIG).narrate_backend, p = narrPlan();
+  if (p && !p.pending.length) return toast("모두 최신 — 다시 만들 장면이 없습니다 ('다시' 표시 후 재생성은 가능)");
+  if (!fishOk(backend, p ? p.pending.map((x) => x.id) : undefined)) return;
   act("narrate", { backend, paid_ok: true });
 }
-function redo() {
-  const ids = Object.keys(review).filter((k) => review[k] === "redo");
-  if (!ids.length) return toast("'다시'로 표시한 장면이 없습니다");
-  ids.forEach((k) => delete review[k]);
+/* scenes worth another take: the listen-back check heard something else, or the take's length doesn't fit its text */
+function narrFlagged() {
+  const stt = view.stt && !view.stt.stale ? view.stt.flagged : [];
+  const pending = narrPlan()?.byId || {};
+  const warn = (view.audio?.scenes || []).filter((x) => x.file && x.warn && !pending[x.id]).map((x) => x.id);
+  return [...new Set([...stt, ...warn])];
+}
+function redoScenes(ids) {
+  if (!ids || !ids.length) return;
   const backend = (view.config || CONFIG).narrate_backend;
   if (!fishOk(backend, ids)) return;
   act("narrate", { backend, force: ids, paid_ok: true });
@@ -829,8 +857,9 @@ async function approve(s) {
   } else if (s === "narration") {
     const ids = (view.audio?.scenes || []).filter((x) => x.file).map((x) => x.id);
     if (!view.audio) return toast("나레이션을 먼저 생성하세요");
-    if (ids.some((id) => review[id] !== "ok")) return toast("모든 장면을 '좋음'으로 표시해야 승인됩니다");
-    body.review = Object.fromEntries(ids.map((id) => [id, "ok"]));
+    const pending = narrPlan()?.pending || [];
+    if (pending.length) return toast(`바뀐 장면 ${pending.length}개(${pending.map((x) => x.id).join(", ")})를 먼저 생성해야 승인됩니다`);
+    body.review = Object.fromEntries(ids.map((id) => [id, "ok"]));   // kept for the record (lecture.json narration_review)
   }
   if (s === "publish") {
     body.checks = [...document.querySelectorAll(".pc")].map((c) => c.checked);
