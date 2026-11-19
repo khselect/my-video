@@ -1,7 +1,7 @@
 # CLAUDE.md — my-video
 
 문서 한 편을 진행자 없는 영상(강의·스토리 애니메이션·홍보 클립)으로 만드는 작업 공간.
-절차는 [WORKFLOW.md](WORKFLOW.md), 작업 기록은 [docs/DEVLOG.md](docs/DEVLOG.md), 스타일 형식은 [studio/styles/SCHEMA.md](studio/styles/SCHEMA.md).
+절차는 [WORKFLOW.md](WORKFLOW.md), 작업 기록은 [docs/DEVLOG.md](docs/DEVLOG.md), 화면별 사용법은 [docs/USAGE.md](docs/USAGE.md), 스타일 형식은 [studio/styles/SCHEMA.md](studio/styles/SCHEMA.md).
 
 ## 작업 원칙 (기존)
 
@@ -10,6 +10,17 @@
 3. **유료 호출(Higgsfield·Fish Audio 등)은 확인 창 + 잔액 선확인 + 기록**(`credits.json`). 부족하면 로컬(FLUX·Qwen)로.
 4. 원문에 없는 숫자는 쓰지 않는다. 근거 없는 스타일 판단은 "근거 부족"으로 쓴다.
 5. 영상·음성·모델·`.env`·`video-skills/` 는 커밋하지 않는다.
+6. **작업이 끝나면 문서를 갱신한다** (2026-11-13): 기능·수정은 [docs/DEVLOG.md](docs/DEVLOG.md)에 장 추가 + 맨 위 표 갱신, 막혔던 문제는 11장 교훈 표에, 화면이 바뀌면 [docs/USAGE.md](docs/USAGE.md) 문구·캡처도. 공개 저장소라 캡처에 진행률 팝업·화자 ID·키가 보이지 않게.
+
+## 현재 상태 (2026-11-13)
+
+- 브랜치: 작업은 `claude/my-video-git-pull-49kwdy`, `main` 에 병합 완료. 기기마다 다른 값은 `studio/config.local.json`(git 제외).
+- **필요 환경** (맥미니 기준, README '필요 환경' 표와 같음):
+  - ffmpeg **5.1+** (도구가 `-fps_mode` 사용, ffmpeg 8+ 에선 `-vsync` 없음). Homebrew 판은 `drawtext` 없음 → 측정 시트에 시간 표시만 빠짐.
+  - Studio 를 띄우는 Python 에 numpy (도구를 그 Python 으로 실행).
+  - 다시 듣기 검사: qwen-tts venv 에 faster-whisper + **PyAV < 16**.
+  - Claude 명령: `claude_cmd` 를 절대 경로(`/Users/sielain/.local/bin/claude`)로 — `~/.local/bin` 이 PATH 에 없으면 Studio 가 `claude` 를 못 찾는다. 로그인 만료 시 `claude auth login`.
+- 최근 변경: 나레이션 생성 버튼에 다시 만들 장면 수·이유(`narrate.py --plan`), 장면별 좋음/다시 판단 제거(승인 = 바뀐 장면 없음), 길이 경고 — [DEVLOG 19~21장](docs/DEVLOG.md#19-맥-환경-반영--ffmpeg-9-호환-2026-11-12).
 
 ---
 
@@ -103,7 +114,7 @@ lemo-opuscar 에서 더한 후보: 13 자막·글자 읽기 시간 검사, 14 �
 | **P1-1** ✅ | 레퍼런스 영상 측정 도구 → `tools/ref_measure.py` | 1, 3 | M | 4단계 워크플로의 토대("측정 먼저, 추정 금지"). 같은 코드로 결과물도 재서 검수 | `tools/ref_measure.py <영상> [--range]` → 전환 시점·실제 fps(홀드 패턴)·96×54 움직임 양·팔레트 HEX·채도/명도·컨택트 시트, 두 영상 대조표(±20%) |
 | **P1-2** ✅ | 효과 사양표 + 스토리보드 승인 → Studio 5단계 참고 영상 측정·스토리보드, 6단계 대조 | 2, 7 | M | P1-1 수치를 "근거 → 구현 → 파라미터"로 바꿔 제작 지시에 넣음. 오래 걸리는 제작 전 방향 확인 | `brief.md` 가 측정값 기반 사양표 포함, 구성표에 카메라·이징 열, 렌더 전 키프레임 시트 |
 | **P2-1** ✅ | 음악 비트 동기화 → `tools/beats.py`, Studio 5단계 '음악·비트' | 4 | M | 나레이션 우선 원칙과 충돌 → 나레이션 없는 promo 스타일과 전환 스냅(±0.3초)에만 | `beats.json`(BPM·강박), 전환이 가까운 박으로 스냅 |
-| **P2-2** ✅ | 나레이션 STT 대조 → `tools/stt_check.py`, Studio 4단계 '다시 듣기' (실제 인식 모델은 미검증) | 16 | S | 오독(고유명사·숫자) 방지. Qwen 로컬 음성에 특히 유효 | 장면별 whisper 재인식 일치율, 불일치 장면 표시 |
+| **P2-2** ✅ | 나레이션 STT 대조 → `tools/stt_check.py`, Studio 4단계 '다시 듣기' (2026-11-12 맥에서 faster-whisper 실제 인식 검증) | 16 | S | 오독(고유명사·숫자) 방지. Qwen 로컬 음성에 특히 유효 | 장면별 whisper 재인식 일치율, 불일치 장면 표시 |
 | **P3** | 규칙형 스타일 · 경로 추천 | 9, 8 | S each | 강의 중심 용도에선 효과 제한적. 수요가 생기면 | 스타일 manifest 추가 / 장면 성격별 추천 문구 |
 | — | 전역 스킬 | 12 | — | 위 결과를 담아 3단계에서 작성 | — |
 

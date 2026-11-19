@@ -29,6 +29,7 @@ import tempfile
 from pathlib import Path
 
 import numpy as np
+from scene_timeline import scene_timeline
 
 SAMPLE_FPS = 10
 W, H = 192, 108
@@ -209,12 +210,12 @@ def _chars(text: str) -> int:
     return len(re.sub(r"[\s\W_]+", "", text or ""))
 
 
-def check_readtime(lecture: Path) -> dict | None:
+def check_readtime(lecture: Path, timeline: list[dict] | None = None) -> dict | None:
     scenes = _read(lecture / "scenes.json")
     manifest = _read(lecture / "build" / "audio" / "manifest.json")
-    if not scenes or not manifest:
+    if not scenes or not (timeline or manifest):
         return None
-    dur = {s.get("id"): float(s.get("duration", 0)) for s in manifest.get("scenes", [])}
+    dur = {s.get("id"): float(s.get("duration", 0)) for s in (timeline or manifest.get("scenes", []))}
     short = []
     for sc in scenes.get("scenes", []):
         text = sc.get("on_screen") or ""
@@ -225,7 +226,7 @@ def check_readtime(lecture: Path) -> dict | None:
         if not n or not d:
             continue
         need = round(n / READ_CPS + READ_PAD, 1)
-        if d < need:
+        if round(d, 1) < need:
             short.append({"scene": sc.get("id"), "chars": n, "seconds": round(d, 1), "need": need})
     return {"status": "warn" if short else "pass",
             "message": (f"글자에 비해 짧은 장면 {len(short)}개" if short else "모든 장면이 화면 글자를 읽을 만큼 길다")
@@ -255,7 +256,7 @@ def _read(p: Path):
 
 # ---------------- main ----------------
 
-def run_qa(video: Path, lecture: Path | None = None, do_normalize: bool = False) -> dict:
+def run_qa(video: Path, lecture: Path | None = None, do_normalize: bool = False, native: bool = False) -> dict:
     norm = normalize(video) if do_normalize else None
     info = probe(video)
     frames = grey_frames(video)
@@ -263,8 +264,11 @@ def run_qa(video: Path, lecture: Path | None = None, do_normalize: bool = False)
     checks = {"blank": check_blank(s, SAMPLE_FPS), "freeze": check_freeze(s, SAMPLE_FPS),
               "loudness": check_loudness(info, measure_loudness(video) if info["has_audio"] else None)}
     timings = None
+    timeline = []
     if lecture:
-        rt = check_readtime(lecture)
+        if native:
+            timeline = scene_timeline(lecture)
+        rt = check_readtime(lecture, timeline)
         if rt:
             checks["readtime"] = rt
         timings = job_timings(lecture)
@@ -272,7 +276,7 @@ def run_qa(video: Path, lecture: Path | None = None, do_normalize: bool = False)
     overall = max((c["status"] for c in checks.values()), key=order.get, default="pass")
     return {"file": video.name, "checked": dt.datetime.now().isoformat(timespec="seconds"), "overall": overall,
             "media": info, "normalized": norm, "checks": checks,
-            "motion_per_second": motion_series(s, SAMPLE_FPS), "timings": timings}
+            "motion_per_second": motion_series(s, SAMPLE_FPS), "timings": timings, "timeline": timeline}
 
 
 def summary(qa: dict) -> dict:
@@ -285,13 +289,14 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("video")
     ap.add_argument("--lecture", help="lecture folder (scenes.json, build/audio/manifest.json, build/logs)")
+    ap.add_argument("--native", action="store_true", help="read scene times from the lecture's HyperFrames index.html")
     ap.add_argument("--out", help="write the full report here (default: <video>.qa.json)")
     ap.add_argument("--normalize", action="store_true", help="loudness-normalize the audio to -14 LUFS first (in place)")
     a = ap.parse_args()
     video = Path(a.video).resolve()
     if not video.exists():
         sys.exit(f"{video} not found")
-    qa = run_qa(video, Path(a.lecture).resolve() if a.lecture else None, a.normalize)
+    qa = run_qa(video, Path(a.lecture).resolve() if a.lecture else None, a.normalize, native=a.native)
     out = Path(a.out) if a.out else video.with_name(video.name + ".qa.json")
     out.write_text(json.dumps(qa, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     mark = {"pass": "OK  ", "warn": "WARN", "fail": "FAIL"}
