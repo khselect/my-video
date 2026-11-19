@@ -18,6 +18,8 @@ Standard library only; long steps run as background jobs with a live log.
 Binds to 127.0.0.1 only.
 """
 import argparse
+import datetime as dt
+import hashlib
 import json
 import mimetypes
 import os
@@ -29,12 +31,16 @@ import sys
 import threading
 import time
 import uuid
+from functools import lru_cache
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import unquote, urlparse
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "tools"))
+from scene_timeline import scene_timeline
+
 LECTURES = ROOT / "lectures"
 SOURCES = ROOT / "sources"
 SOURCE_EXTS = {".pdf", ".html", ".htm", ".md", ".markdown", ".txt"}
@@ -49,13 +55,15 @@ PUBLISH_CHECKS = [
     "화면의 숫자·사실을 원문과 대조했다",
     "도구 라이선스를 확인했다 (Remotion: 4인 이상 회사는 유료)",
     "클론한 목소리는 본인 목소리다 (타인은 서면 동의)",
-    "제목·설명·썸네일(0초 프레임)을 확인했다",
+    "제목·설명·썸네일(위 '유튜브 썸네일'에서 고른 thumbnail.jpg)을 확인했다",
 ]
 DEFAULT_CONFIG = {
     "qwen_python": sys.executable,       # e.g. C:\\Developments\\qwen-tts-env\\Scripts\\python.exe
     "narrate_backend": "customvoice",    # customvoice | clone | silent
     "speaker": "uncle_fu",         # male; sohee is the only Korean-native (female)
     "voice": "me",
+    "provider": "claude",
+    "codex_cmd": shutil.which("codex") or "codex",
     "claude_cmd": "claude",
     "image_python": str(Path.home() / ".edu-video" / "image-venv" / "bin" / "python"),   # tools/setup_image_gen.sh
     "stt_python": sys.executable,        # a Python with faster-whisper (e.g. the qwen-tts venv), else whisper.cpp via npx
@@ -93,7 +101,12 @@ def read_json(path: Path, default=None):
 
 def write_json(path: Path, data) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    tmp = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
+    try:
+        tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        tmp.replace(path)
+    finally:
+        tmp.unlink(missing_ok=True)
 
 
 def load_state(slug: str) -> dict:
@@ -101,6 +114,12 @@ def load_state(slug: str) -> dict:
     st = read_json(d / "lecture.json", {"slug": slug, "title": slug, "brief": {}, "stages": {}})
     st.setdefault("stages", {})
     st.setdefault("brief", {})
+    for stage in STAGES:
+        rec = st["stages"].get(stage, {})
+        if rec.get("status") == "approved" and rec.get("artifact"):
+            if rec["artifact"] != stage_artifact(d, st, stage, rec.get("version")):
+                mark_changed(st, stage)
+                break
     return st
 
 
@@ -136,6 +155,54 @@ def approve(st: dict, stage: str, note: str = "") -> None:
     st["stages"][stage] = {"status": "approved", "approved_at": time.strftime("%Y-%m-%dT%H:%M:%S"), "note": note}
 
 
+@lru_cache(maxsize=256)
+def file_digest(path: Path, signature: tuple) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def stage_artifact(d: Path, st: dict, stage: str, version: str | None = None) -> str:
+    paths = []
+    data = {}
+    if stage == "source":
+        paths = [d / "source" / "source.md"]
+    elif stage == "brief":
+        data = {"title": st.get("title"), "brief": st["brief"]}
+    elif stage == "script":
+        paths = [d / "scenes.json"]
+    elif stage == "narration":
+        audio = d / "build" / "audio"
+        paths = [audio / "manifest.json", *audio.glob("*.wav"), d / "assets" / "voice" / "narration.wav"]
+        data = st.get("scene_speakers") or {}
+    elif stage == "visuals":
+        style, opts = lecture_style(st)
+        paths = [d / "storyboard.md"]
+        if style["engine"] == "edu-video":
+            paths += [d / "index.html", *(d / "compositions").rglob("*.html")]
+        else:
+            work = d / f"style-{style['id']}"
+            paths += [p for p in work.glob("*") if p.is_file() and p.suffix in {".html", ".json", ".tsx", ".js", ".css"}]
+        data = {"style": style["id"], "options": opts, "plan": (st.get("visual_plan") or {}).get(style["id"])}
+    elif stage in ("render", "publish"):
+        manifest = read_json(d / "renders" / "manifest.json", {}) or {}
+        data = next((v for v in manifest.get("versions", []) if v["version"] == version), {})
+        if data and Path(data["file"]).name == data["file"]:
+            paths = [d / "renders" / data["file"]]
+        if stage == "publish":
+            paths.append(d / "thumbnail" / "thumbnail.jpg")
+    files = {}
+    for p in sorted(paths):
+        try:
+            stat = p.stat()
+            files[p.relative_to(d).as_posix()] = file_digest(p, (stat.st_ino, stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns))
+        except FileNotFoundError:
+            files[p.relative_to(d).as_posix()] = None
+    return hashlib.sha256(json.dumps([data, files], sort_keys=True, ensure_ascii=False).encode()).hexdigest()
+
+
 # ---------------- background jobs ----------------
 
 JOBS: dict[str, dict] = {}
@@ -147,6 +214,8 @@ PAID_API_ENV = ("FAL_KEY", "ELEVENLABS_API_KEY", "XI_API_KEY")   # never reachab
 
 
 def run_job(slug: str, kind: str, cmd: list[str], cwd: Path, after=None, meta: dict | None = None) -> str:
+    if kind.startswith("claude-") and cmd[1:2] == ["exec"]:
+        kind = kind.replace("claude-", "codex-", 1)
     with JOB_LOCK:
         for j in JOBS.values():
             if j["slug"] == slug and j["status"] == "running":
@@ -159,7 +228,7 @@ def run_job(slug: str, kind: str, cmd: list[str], cwd: Path, after=None, meta: d
                         "cmd": cmd, "started": time.time(), "returncode": None, **(meta or {})}
 
     def worker():
-        env = dict(os.environ, PYTHONUTF8="1", PYTHONIOENCODING="utf-8")
+        env = dict(subscription_env() if kind.startswith(("claude-", "codex-")) else os.environ, PYTHONUTF8="1", PYTHONIOENCODING="utf-8")
         for k in PAID_API_ENV:
             env.pop(k, None)
         with open(log, "w", encoding="utf-8", errors="replace") as f:
@@ -168,7 +237,7 @@ def run_job(slug: str, kind: str, cmd: list[str], cwd: Path, after=None, meta: d
             try:
                 p = subprocess.Popen(cmd, cwd=cwd, stdin=subprocess.DEVNULL, stdout=f, stderr=subprocess.STDOUT, env=env)
                 rc = p.wait()
-            except FileNotFoundError as e:
+            except OSError as e:
                 f.write(f"\n실행 파일을 찾을 수 없습니다: {e}\n")
                 rc = 127
         JOBS[job_id]["returncode"] = rc
@@ -209,6 +278,9 @@ def job_progress(job: dict, text: str) -> dict:
     """Best-effort percent for the popup, read from the job's log (or files it writes).
     pct None = no measurable progress (bar shows as indeterminate)."""
     kind, status = job["kind"], job["status"]
+    codex = kind.startswith("codex-")
+    if codex:
+        kind = kind.replace("codex-", "claude-", 1)
     elapsed = (job.get("ended") or time.time()) - job["started"]
     pct, label = None, ""
     # parse complete lines only: a half-written "159/237" would read as "159/23"
@@ -307,6 +379,8 @@ def job_progress(job: dict, text: str) -> dict:
         pct, label = 100, "완료"
     # ETA only once real units are done (not during model load / warm-up, where it would be wildly high)
     eta = elapsed / pct * (100 - pct) if pct and 10 <= pct < 100 and status == "running" else None
+    if codex:
+        label = label.replace("Claude", "Codex")
     return {"pct": None if pct is None else round(pct, 1), "label": label,
             "elapsed": round(elapsed), "eta": None if eta is None else round(eta)}
 
@@ -323,6 +397,7 @@ lectures/{slug}/source/source.md 를 끝까지 읽고, 장면 대본 lectures/{s
 - 목표 길이: 약 {b.get('target_seconds', 60)}초 (장면당 4~9초, 내레이션 40~55자)
 - language "korean" 를 최상위에 넣는다 (화자는 4단계 나레이션에서 정하므로 speaker·voice 는 쓰지 않는다).
 - 장면 id 는 s01, s02 ... ; shape 는 style-guide 의 7가지 중 장면마다 다르게.
+- source_ref 는 근거가 있는 PDF 의 페이지(p.3) 또는 원문 제목을 그대로 적는다. 근거가 없으면 비워 둔다.
 - 원문에 없는 숫자는 쓰지 않는다. 영어 고유명사는 내레이션에서 한글 발음으로 적는다.{style_hint(st)}
 scenes.json 파일만 쓰고 끝낸다."""
 
@@ -375,8 +450,48 @@ def claude_exe(cfg: dict) -> str:
     return shutil.which(cfg.get("claude_cmd", "claude")) or cfg.get("claude_cmd", "claude")
 
 
-def claude_cmd(cfg: dict, prompt: str, bash: list[str] | None = None, add_dirs: list[Path] | None = None,
+def provider_name(value):
+    if value not in ("claude", "codex"):
+        raise ValueError("제작 도구는 Claude 또는 Codex를 선택하세요")
+    return value
+
+
+def subscription_env():
+    env = os.environ.copy()
+    for key in ("OPENAI_API_KEY", "CODEX_API_KEY", "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN"):
+        env.pop(key, None)
+    return env
+
+
+def provider_status(cfg):
+    result = {}
+    for name in ("claude", "codex"):
+        args = ["auth", "status"] if name == "claude" else ["login", "status"]
+        try:
+            proc = subprocess.run([cfg[name + "_cmd"], *args], capture_output=True, text=True,
+                                  timeout=8, env=subscription_env())
+            if name == "claude":
+                auth = json.loads(proc.stdout or "{}")
+                ready = auth.get("loggedIn") and auth.get("authMethod") == "claude.ai"
+            else:
+                ready = proc.returncode == 0 and "chatgpt" in (proc.stderr + proc.stdout).lower()
+            result[name] = "구독 계정 연결" if ready else "구독 로그인 확인 필요"
+        except FileNotFoundError:
+            result[name] = "CLI를 찾을 수 없음"
+        except (OSError, ValueError, subprocess.TimeoutExpired):
+            result[name] = "상태 확인 실패"
+    return result
+
+
+def generation_cmd(cfg: dict, prompt: str, bash: list[str] | None = None, add_dirs: list[Path] | None = None,
                tools: str = "Read,Write,Edit,Glob,Grep") -> list[str]:
+    if provider_name(cfg["provider"]) == "codex":
+        if "ToolSearch" in tools or "mcp__" in tools:
+            raise ValueError("이 옵션에는 Claude 커넥터가 필요합니다")
+        prompt = f"공통 제작 지침은 {ROOT / 'CLAUDE.md'}와 지시문에 명시한 스킬 파일을 직접 읽어 적용한다.\n" + prompt
+        extra = [str(path) for path in (add_dirs or []) if path.is_dir() and path.is_relative_to(LECTURES)]
+        return [cfg["codex_cmd"], "exec", "-c", 'forced_login_method="chatgpt"', "--sandbox", "workspace-write",
+                "--ephemeral", "--skip-git-repo-check", *[arg for path in extra for arg in ("--add-dir", path)], prompt]
     exe = claude_exe(cfg)
     cmd = [exe, "-p", prompt, "--permission-mode", "acceptEdits"]
     if add_dirs:
@@ -602,7 +717,8 @@ def plan_view(slug: str, st: dict, style: dict, opts: dict) -> dict:
             a = audio.get(sc["id"])
             rows.append({"id": sc["id"], "label": sc["id"], "defaults": dv,
                          "time": f"{a['start']:.1f}–{a['start'] + a['duration']:.1f}초" if a else "",
-                         "say": (sc.get("narration") or sc.get("text") or "").strip()})
+                         "say": (sc.get("narration") or sc.get("text") or "").strip(),
+                         "timing": {k: a[k] for k in ("start", "duration")} if a else None})
     else:
         fixed = spec.get("fixed_rows", [])
         for i, r in enumerate(fixed):
@@ -616,9 +732,30 @@ def plan_view(slug: str, st: dict, style: dict, opts: dict) -> dict:
     for r in rows:
         r["values"] = {k: v for k, v in (saved.get(r["id"]) or {}).items() if k in r["defaults"] and v != r["defaults"][k]}
     built = (st.get("visual_plan_built") or {}).get(style["id"])
-    changed = [r["id"] for r in rows if built is not None and resolved_row(r) != built.get(r["id"])]
+    inputs = (st.get("visual_inputs_built") or {}).get(style["id"])
+    if inputs:
+        old_rows = inputs["rows"]
+        for r in rows:
+            previous = old_rows.get(r["id"], {})
+            old, new = previous.get("timing") or {}, r.get("timing") or {}
+            reasons = []
+            if old.get("duration") != new.get("duration"):
+                reasons.append("길이 변경")
+            elif old.get("start") != new.get("start"):
+                reasons.append("시작 시각만 이동")
+            if r["say"] != previous.get("say", ""):
+                reasons.append("나레이션 문구 변경")
+            if r["id"] not in old_rows:
+                reasons = ["새 장면"]
+            r["reasons"] = reasons
+    changed = [r["id"] for r in rows if built is not None and (resolved_row(r) != built.get(r["id"]) or r.get("reasons"))]
+    full_reason = ""
+    if inputs and inputs["options"] != opts:
+        full_reason = "스타일 옵션이 바뀌어 전체 장면을 다시 제작합니다."
+    elif built is not None and set(built) - {r["id"] for r in rows}:
+        full_reason = "삭제되거나 이름이 바뀐 장면이 있어 전체 구성을 다시 제작합니다."
     return {"note": spec.get("note", ""), "rows_from": spec.get("rows", "scenes"), "columns": cols, "rows": rows,
-            "built": built is not None, "built_rows": built or {}, "changed": changed}
+            "built": built is not None, "built_rows": built or {}, "changed": changed, "full_reason": full_reason}
 
 
 def resolved_row(r: dict) -> dict:
@@ -651,6 +788,9 @@ def plan_diff(plan: dict, built: dict) -> dict:
             continue
         now, old = resolved_row(r), (built or {}).get(r["id"]) or {}
         parts = [f"{labels.get(k, k)}: '{old.get(k, '')}' → '{v}'" for k, v in now.items() if k != "note" and v != old.get(k, "")]
+        parts.extend(r.get("reasons", []))
+        if "시작 시각만 이동" in parts and len(parts) == 1 and r["id"] in built:
+            parts[0] = "루트 타임라인의 시작 시각만 갱신. 이 장면의 HTML과 에셋은 그대로 둔다."
         if now.get("note"):
             parts.append(f"수정 요청: {now['note']}")
         fb[r["label"]] = "; ".join(parts) or "다시 확인"
@@ -758,6 +898,97 @@ def ref_hint(slug: str) -> str:
         text += (" 메모의 '효과 사양표' 파라미터는 코드 한곳(장면 파일 맨 위 상수 묶음, 예: const FX = {ANIM_FPS: 12, ...})에 "
                  "이름 붙여 모으고 그 값대로 구현한다. 렌더 후 Studio 가 같은 측정 코드로 레퍼런스와 대조한다(±20%).")
     return text
+
+
+# ---- YouTube thumbnail (stage 7): 3 drafts as 1280x720 HTML in the video's style → PNG (tools/thumbnail.py)
+# Lives in stage 7 so remaking it never unapproves stages 5-6; it inherits the stage-5 style and reference memo.
+THUMB_IDS = ("a", "b", "c")
+THUMB_LAYOUT = {"a": "영상 장면 소재 중심", "b": "타이포 중심", "c": "도형·아이콘 1개 중심"}
+
+
+def thumb_dir(slug: str) -> Path:
+    return lecture_dir(slug) / "thumbnail"
+
+
+def thumb_view(slug: str, st: dict) -> dict:
+    d, t = lecture_dir(slug), thumb_dir(slug)
+    meta = st.get("thumbnail") or {}
+    notes = read_json(t / "notes.json", {}) or {}
+    rel = lambda p: p.relative_to(d).as_posix()   # noqa: E731
+    final = t / "thumbnail.jpg"
+    return {"style": meta.get("style", ""), "text": meta.get("text", ""), "made_at": meta.get("made_at", ""),
+            "frames_from": meta.get("frames_from", ""), "chosen": meta.get("chosen", ""),
+            "drafts": [{"id": i, "png": rel(t / f"{i}.png"), "layout": THUMB_LAYOUT[i], "note": str(notes.get(i, ""))}
+                       for i in THUMB_IDS if (t / f"{i}.png").exists()],
+            "refs": sorted(p.name for p in (t / "ref").glob("*") if p.suffix.lower() in REF_IMAGE_EXTS) if (t / "ref").exists() else [],
+            "final": rel(final) if final.exists() else "",
+            "final_kb": final.stat().st_size // 1024 if final.exists() else 0}
+
+
+def render_file(slug: str, version: str) -> Path | None:
+    d = lecture_dir(slug)
+    for v in (read_json(d / "renders" / "manifest.json", {"versions": []}) or {}).get("versions", []):
+        if v.get("version") == version:
+            f = d / "renders" / v["file"]
+            return f if f.exists() else None
+    return None
+
+
+def prompt_thumb(slug: str, st: dict, feedback: dict | None = None) -> str:
+    d, t = lecture_dir(slug), thumb_dir(slug)
+    style, opts = lecture_style(st)
+    work = f"lectures/{slug}" + ("" if style["engine"] == "edu-video" else f"/style-{style['id']}")
+    tdir = f"lectures/{slug}/thumbnail"
+    meta = st.get("thumbnail") or {}
+    want = (meta.get("style") or "").strip()
+    text = (meta.get("text") or "").strip()
+    frames = sorted(p.name for p in (t / "frames").glob("f*.jpg")) if (t / "frames").exists() else []
+    refs = thumb_view(slug, st)["refs"]
+    assets = style_assets(d, style)
+    opt_txt = ", ".join(f"{o['label']}={opts.get(o['key'], '')}" for o in style["options"] if str(opts.get(o["key"], "")).strip())
+    brief = ref_dir(slug) / "brief.md"
+    py = shlex.quote(sys.executable)
+    lines = [
+        f"작업: 이 영상의 유튜브 썸네일 시안 3개를 1280×720 HTML 로 만든다 — {tdir}/a.html, b.html, c.html",
+        "",
+        f"영상 정보: lectures/{slug}/lecture.json 의 title·brief(one_idea, audience), lectures/{slug}/scenes.json 의 on_screen 을 읽는다.",
+        f"영상 스타일(5단계): '{style['name']}' — {style.get('summary', '')}" + (f" 옵션: {opt_txt}." if opt_txt else ""),
+        f"색·글꼴·도형 언어는 실제 장면 파일({work}/index.html, {work}/compositions/*.html 등)을 읽어 그대로 맞춘다 "
+        "— 클릭해서 본 영상 첫 화면이 썸네일과 이어져 보이게.",
+    ]
+    if brief.exists():
+        lines.append(f"참고 스타일 메모: {brief.relative_to(ROOT)} 의 색·질감도 반영한다.")
+    if assets:
+        lines.append(f"영상에 쓴 캐릭터·이미지(상대 경로로 써도 됨): {', '.join(assets[:12])} — {tdir} 기준 '../' 로 시작.")
+    if frames:
+        lines.append(f"렌더 프레임({meta.get('frames_from', '')}): {tdir}/frames/{', '.join(frames)} — Read 로 보고 "
+                     "가장 상징적인 장면을 a 의 배경·소재로 쓴다(어둡게 깔거나 일부만 크롭해 글자가 잘 읽히게).")
+    lines += ["",
+              f"사용자가 원하는 썸네일 스타일: {want or '(입력 없음 — 영상 스타일 그대로, 심플하게)'}"]
+    if refs:
+        lines.append(f"참고 썸네일 이미지: {', '.join(f'{tdir}/ref/{n}' for n in refs)} — Read 로 보고 레이아웃·글자 처리·색 대비·여백 감각을 "
+                     "비슷하게 한다. 그 썸네일의 문구·인물·로고·캐릭터는 베끼지 않는다.")
+    lines += [f"큰 글자 문구: {text or '(입력 없음 — 핵심 아이디어에서 3~5어절로 뽑는다. 긴 제목을 그대로 쓰지 않는다)'}",
+              "",
+              "최근 유튜브 썸네일 원칙 (심플·트렌드):",
+              "- 초점 하나: 큰 글자 1줄(최대 2줄, 3~5어절) + 시각 요소 1개. 요소는 3개를 넘기지 않고 여백을 넉넉히 둔다.",
+              "- 휴대폰 목록 크기(약 168×94)에서도 읽히게: 글자 높이 90px 이상, 굵기 800~900, 배경과 명도 대비 강하게. 강조색은 핵심 단어 하나에만.",
+              "- 평면 또는 은은한 그라디언트 배경, 부드러운 그림자·얇은 외곽선 정도만. 빨간 화살표·동그라미·과장 이모지·네온 남발 같은 낚시형 장식은 쓰지 않는다.",
+              "- 오른쪽 아래 220×80px 는 비운다(유튜브 재생시간 표시). 가장자리 48px 안쪽에는 글자를 두지 않는다.",
+              "- 세 시안은 구도가 서로 달라야 한다: a = 영상 장면 소재 중심(프레임이 없으면 장면의 도형을 HTML/SVG 로 다시 그림), "
+              "b = 타이포 중심(글자가 주인공), c = 도형·아이콘 1개 중심 + 짧은 글자.",
+              "",
+              "HTML 규칙: 파일마다 독립 페이지, <meta charset=\"utf-8\">, html·body 는 width 1280px·height 720px·margin 0·overflow hidden. "
+              "스크립트·애니메이션 없음(정지 화면). 이미지는 상대 경로. 글꼴은 영상과 같은 것(웹폰트면 같은 <link>), 없으면 "
+              "Pretendard(https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css) → 'Apple SD Gothic Neo'.",
+              f"확인: 쓴 뒤 `{py} {TOOLS / 'thumbnail.py'} capture {tdir}/<id>.html ...` 로 PNG 를 만들고 Read 로 직접 보며 "
+              "글자 넘침·잘림·겹침·대비를 고친다(최대 2번).",
+              f"마지막으로 {tdir}/notes.json 에 {{\"a\": \"구도·문구 한 줄 설명\", ...}} 을 쓴다(이번에 바꾸지 않은 항목은 그대로 둔다)."]
+    if feedback:
+        ids = ", ".join(f"{k}.html" for k in feedback)
+        lines += ["", f"이번에는 {ids} 만 아래 피드백대로 고친다. 다른 시안 파일은 건드리지 않는다:",
+                  *(f"- {k}: {v}" for k, v in feedback.items())]
+    return "\n".join(lines)
 
 
 # ---- narration plan: which scenes "생성" will (re)make and why — tools/narrate.py plan(), same cache key
@@ -1010,6 +1241,70 @@ def list_lectures() -> list[dict]:
     return out
 
 
+def render_review(d: Path, version: dict) -> list[dict]:
+    """Keep review timestamps tied to the render, including older QA reports."""
+    file = version.get("file", "")
+    if not file or Path(file).name != file:
+        return []
+    try:
+        report = read_json(d / "renders" / (file + ".qa.json"), {}) or {}
+    except (OSError, ValueError):
+        return []
+    if report.get("file") != file:
+        return []
+    native = version.get("engine") == "hyperframes" and version.get("kind") == "render"
+    timeline = report.get("timeline") if native else None
+    if native and timeline is None:
+        # Legacy reports can use the local root only when it predates this render.
+        try:
+            rendered = dt.datetime.fromisoformat(version["created"]).timestamp()
+            if (d / "index.html").stat().st_mtime <= rendered:
+                timeline = scene_timeline(d)
+        except (OSError, KeyError, TypeError, ValueError):
+            pass
+    timeline = timeline or []
+    starts = {row["id"]: row["start"] for row in timeline}
+    checks = report.get("checks", {})
+    review = []
+    for key in ("blank", "freeze"):
+        check = checks.get(key, {})
+        if check.get("status") not in ("warn", "fail"):
+            continue
+        for segment in check.get("segments", []):
+            t, length = segment["t"], segment["seconds"]
+            ids = [r["id"] for r in timeline if r["start"] < t + length and r["start"] + r["duration"] > t]
+            review.append({"kind": key, "time": t, "seconds": length, "scenes": ids})
+    for row in checks.get("readtime", {}).get("scenes", []):
+        sid = row["scene"]
+        review.append({"kind": "readtime", "time": starts.get(sid), "scenes": [sid],
+                       "seconds": row["seconds"], "need": row["need"], "chars": row["chars"]})
+    return review
+
+
+def hyperframes_command(d: Path) -> list[str]:
+    scripts = (read_json(d / "package.json", {}) or {}).get("scripts", {})
+    pin = re.match(r"^npx\s+(?:--yes\s+)?(hyperframes@\d+\.\d+\.\d+(?:-[\w.-]+)?)\s", scripts.get("render", ""))
+    return [shutil.which("npx") or "npx", "--yes", pin[1]] if pin else [shutil.which("npx") or "npx", "hyperframes"]
+
+
+def source_sections(path: Path) -> list[dict]:
+    if not path.is_file():
+        return []
+    text = path.read_text(encoding="utf-8")
+    headings = list(re.finditer(r"^#{1,6}[ \t]+([^\n]+)$", text, re.M))
+    if not headings:
+        return [{"ref": "원문", "text": text}]
+    sections = []
+    if text[:headings[0].start()].strip():
+        sections.append({"ref": "도입부", "text": text[:headings[0].start()].strip()})
+    for i, match in enumerate(headings):
+        title = match[1].strip()
+        page = re.fullmatch(r"\[(p\.\d+)\]", title)
+        end = headings[i + 1].start() if i + 1 < len(headings) else len(text)
+        sections.append({"ref": page[1] if page else title, "text": text[match.end():end].strip()})
+    return sections
+
+
 def lecture_view(slug: str) -> dict:
     d = lecture_dir(slug)
     st = load_state(slug)
@@ -1019,7 +1314,7 @@ def lecture_view(slug: str) -> dict:
     styles = load_styles()
     style, opts = lecture_style(st, styles)
     if style["engine"] == "edu-video":
-        snaps = sorted((d / "build" / "snapshots").glob("*.jpg")) + sorted((d / "build" / "snapshots").glob("*.png"))
+        snaps = sorted(p for p in (d / "build" / "snapshots").glob("**/*") if p.suffix in {".jpg", ".png"})
         visuals_prompt = edu_prompt(slug, st, style, opts)
     else:
         w = d / f"style-{style['id']}"
@@ -1031,12 +1326,13 @@ def lecture_view(slug: str) -> dict:
         "state": st, "stages": STAGES, "publish_checks": PUBLISH_CHECKS,
         "sources": sorted(p.name for p in SOURCES.glob("*") if p.is_file() and not p.name.startswith(".")),
         "source_preview": src.read_text(encoding="utf-8")[:6000] if src.exists() else "",
+        "source_refs": list(dict.fromkeys(s["ref"] for s in source_sections(src))),
         "scenes": read_json(d / "scenes.json"),
         "audio": manifest,
         "scene_speakers": st.get("scene_speakers") or {},
         "config": load_config(),
         "snapshots": [p.relative_to(d).as_posix() for p in snaps],
-        "renders": renders["versions"],
+        "renders": [{**v, "review": render_review(d, v)} for v in renders["versions"]],
         "styles": list(styles.values()), "categories": CATEGORY,
         "style": {"id": style["id"], "options": opts},
         "plan": plan_view(slug, st, style, opts),
@@ -1047,6 +1343,7 @@ def lecture_view(slug: str) -> dict:
         "storyboard": {**(st.get("storyboard") or {}),
                        "text": storyboard_path(slug).read_text(encoding="utf-8") if storyboard_path(slug).exists() else ""},
         "style_assets": style_assets(d, style),
+        "thumb": thumb_view(slug, st),
         "paid": paid_notice(style, opts),
         "voice": voice_view(),
         "prompts": {"script": prompt_script(slug, st), "visuals": visuals_prompt},
@@ -1059,6 +1356,14 @@ def do_action(slug: str, action: str, body: dict) -> dict:
     d = lecture_dir(slug)
     st = load_state(slug)
     py = sys.executable
+    cfg["provider"] = provider_name(body.get("provider", cfg["provider"]))
+
+    if action == "source_section":
+        requested = str(body.get("ref", "")).strip()
+        matches = [s for s in source_sections(d / "source" / "source.md") if s["ref"] == requested]
+        if not matches:
+            raise ValueError("일치하는 원문 위치가 없습니다. 목록에서 페이지나 제목을 선택하세요.")
+        return {"ref": requested, "text": "\n\n".join(s["text"] for s in matches)}
 
     if action == "set_source":
         name = Path(body["file"]).name
@@ -1094,7 +1399,27 @@ def do_action(slug: str, action: str, body: dict) -> dict:
         return {"ok": True}
 
     if action == "draft_script":
-        return {"job": run_job(slug, "claude-script", claude_cmd(cfg, prompt_script(slug, st)), ROOT)}
+        draft = d / "build" / f"draft-{uuid.uuid4().hex}.json"
+        draft.parent.mkdir(exist_ok=True)
+        prompt = prompt_script(slug, st).replace(f"lectures/{slug}/scenes.json", str(draft)).replace("scenes.json 파일만 쓰고", f"{draft} 파일만 쓰고")
+        def validate_script():
+            script = read_json(draft, {}) or {}
+            scenes = script.get("scenes")
+            if not isinstance(scenes, list) or not scenes:
+                raise ValueError("생성된 대본에 장면이 없습니다")
+            ids = set()
+            for scene in scenes:
+                sid = scene.get("id", "")
+                if not re.fullmatch(r"[A-Za-z0-9_-]+", sid) or sid in ids:
+                    raise ValueError("생성된 대본의 장면 ID를 확인하세요")
+                ids.add(sid)
+                if not isinstance(scene.get("on_screen"), list) or not isinstance(scene.get("narration", scene.get("text")), str):
+                    raise ValueError(f"{sid}의 내레이션과 화면 문구를 확인하세요")
+            draft.replace(d / "scenes.json")
+            current = load_state(slug)
+            mark_changed(current, "script")
+            save_state(slug, current)
+        return {"job": run_job(slug, "claude-script", generation_cmd(cfg, prompt), ROOT, after=validate_script)}
 
     if action == "save_scenes":
         scenes = body["scenes"]
@@ -1281,7 +1606,7 @@ def do_action(slug: str, action: str, body: dict) -> dict:
             write_json(ref_dir(slug) / "ref.json", m)
             if not (ref_dir(slug) / "brief.md").exists():
                 raise RuntimeError("brief.md 가 만들어지지 않았습니다")
-        cmd = claude_cmd(cfg, prompt_brief(slug), bash=[], tools="Read,Write,Edit,Glob,WebFetch", add_dirs=[ref_dir(slug)])
+        cmd = generation_cmd(cfg, prompt_brief(slug), bash=[], tools="Read,Write,Edit,Glob,WebFetch", add_dirs=[ref_dir(slug)])
         unapprove_storyboard(st)
         save_state(slug, st)
         return {"job": run_job(slug, "claude-brief", cmd, ref_dir(slug), after=stamp)}
@@ -1329,7 +1654,7 @@ def do_action(slug: str, action: str, body: dict) -> dict:
             s2["storyboard"] = {"made_at": time.strftime("%Y-%m-%dT%H:%M:%S"), "style": sid, "approved": False}
             save_state(slug, s2)
         add = [d] + ([Path(style_vars(slug, st, style, opts)["skill"])] if not edu else []) + [MOTION_RULES.parent]
-        cmd = claude_cmd(cfg, prompt_storyboard(slug, build), bash=[], tools="Read,Write,Edit,Glob,Grep", add_dirs=add)
+        cmd = generation_cmd(cfg, prompt_storyboard(slug, build), bash=[], tools="Read,Write,Edit,Glob,Grep", add_dirs=add)
         return {"job": run_job(slug, "claude-storyboard", cmd, ROOT, after=stamp_sb)}
 
     if action == "approve_storyboard":
@@ -1347,17 +1672,27 @@ def do_action(slug: str, action: str, body: dict) -> dict:
         if body.get("mode") == "changed":
             if not plan["built"]:
                 raise ValueError("아직 이 구성으로 만든 적이 없습니다 — '이 구성으로 장면 제작'을 먼저 하세요")
+            if plan["full_reason"]:
+                raise ValueError(plan["full_reason"])
             fb = plan_diff(plan, st["visual_plan_built"][style["id"]])
             if not fb:
                 raise ValueError("마지막 제작 이후 바뀐 행이 없습니다")
 
         def remember_plan(sid=style["id"]):
-            # after a successful build: this table is what is on screen now; one-off 수정 요청 are done
+            # Record the inputs submitted with the job. Edits made while it ran are still pending.
             s2 = load_state(slug)
-            p2 = plan_view(slug, s2, *lecture_style(s2))
-            s2.setdefault("visual_plan_built", {})[sid] = {r["id"]: {**resolved_row(r), "note": ""} for r in p2["rows"]}
-            for vals in (s2.get("visual_plan") or {}).get(sid, {}).values():
-                vals.pop("note", None)
+            s2.setdefault("visual_plan_built", {})[sid] = {
+                r["id"]: {k: "" if k == "note" else v for k, v in resolved_row(r).items()} for r in plan["rows"]
+            }
+            s2.setdefault("visual_inputs_built", {})[sid] = {
+                "options": opts,
+                "rows": {r["id"]: {"say": r["say"], "timing": r.get("timing")} for r in plan["rows"]},
+            }
+            saved = (s2.get("visual_plan") or {}).get(sid, {})
+            for row in plan["rows"]:
+                vals = saved.get(row["id"], {})
+                if vals.get("note") == row["values"].get("note"):
+                    vals.pop("note", None)
             save_state(slug, s2)
         if not edu:
             if not style.get("installed"):
@@ -1366,6 +1701,8 @@ def do_action(slug: str, action: str, body: dict) -> dict:
             if style["narration"] in ("sync", "overlay") and opts.get("narration", "on") != "off" \
                     and not (d / "build" / "audio" / "manifest.json").exists():
                 raise ValueError("이 스타일은 나레이션 길이에 맞춰 장면을 만듭니다 — 4단계 나레이션을 먼저 생성하세요")
+        if cfg["provider"] == "codex" and style_mcp_tools(style, opts):
+            raise ValueError("선택한 장면 옵션에는 Claude 커넥터가 필요합니다. 이번 작업 도구에서 Claude를 선택하세요.")
         st.setdefault("feedback", []).append({"at": time.strftime("%Y-%m-%dT%H:%M:%S"), "style": style["id"], "items": fb}) if fb else None
         mark_changed(st, "visuals")
         save_state(slug, st)
@@ -1376,12 +1713,12 @@ def do_action(slug: str, action: str, body: dict) -> dict:
                 raise ValueError("유료 사용 확인이 필요합니다 — 화면의 확인 창에서 승인하세요")
             if style.get("prompt"):
                 (d / "assets" / "images").mkdir(parents=True, exist_ok=True)
-            cmd = claude_cmd(cfg, edu_prompt(slug, st, style, opts, fb),
+            cmd = generation_cmd(cfg, edu_prompt(slug, st, style, opts, fb),
                              bash=["npx hyperframes:*", "npx --yes hyperframes:*", *fill(style.get("bash", []), v)],
                              tools=",".join(["Read", "Write", "Edit", "Glob", "Grep", *(["ToolSearch", *mcp] if mcp else [])]))
             return {"job": run_job(slug, "claude-visuals", cmd, ROOT, after=remember_plan)}
         v = style_vars(slug, st, style, opts)
-        cmd = claude_cmd(cfg, prompt_style(slug, st, style, opts, fb), bash=fill(style.get("bash", []), v),
+        cmd = generation_cmd(cfg, prompt_style(slug, st, style, opts, fb), bash=fill(style.get("bash", []), v),
                          add_dirs=[Path(v["skill"]), d, MOTION_RULES.parent])
         return {"job": run_job(slug, "claude-visuals", cmd, Path(v["work"]), after=remember_plan, meta={"style": style["id"]})}
 
@@ -1396,11 +1733,19 @@ def do_action(slug: str, action: str, body: dict) -> dict:
             cmd = fill(style["qa"], v)
             cmd[0] = shutil.which(cmd[0]) or cmd[0]
             return {"job": run_job(slug, "snapshot", cmd, Path(fill(style.get("qa_cwd", "{work}"), v)))}
+        sid = body.get("scene")
         out = d / "build" / "snapshots"
-        if out.exists():
-            shutil.rmtree(out)
-        npx = shutil.which("npx") or "npx"
-        return {"job": run_job(slug, "snapshot", [npx, "hyperframes", "snapshot", "--review", "-o", str(out)], d)}
+        args = ["--review"]
+        if sid:
+            row = next((r for r in scene_timeline(d) if r["id"] == sid), None)
+            if not row or sid not in _scene_ids(slug):
+                raise ValueError("이 장면의 미리보기 시각을 찾을 수 없습니다. 장면을 먼저 제작하세요.")
+            if not (d / "compositions" / f"{sid}.html").is_file():
+                raise ValueError("미리 볼 장면을 먼저 제작하세요")
+            start, duration = row["start"], row["duration"]
+            args = ["--at", ",".join(f"{start + duration * part:.3f}" for part in (0.15, 0.5, 0.85)), "--no-end"]
+            out = out / sid
+        return {"job": run_job(slug, "snapshot", [*hyperframes_command(d), "snapshot", *args, "-o", str(out)], d)}
 
     if action == "check":
         if not edu:
@@ -1437,8 +1782,83 @@ def do_action(slug: str, action: str, body: dict) -> dict:
             args += ["--music", str(music)]
         return {"job": run_job(slug, "render", args, ROOT, meta={"style": style["id"]})}
 
+    if action == "save_thumb":
+        meta = st.setdefault("thumbnail", {})
+        meta.update(style=str(body.get("style", ""))[:2000], text=str(body.get("text", ""))[:200])
+        save_state(slug, st)
+        return {"ok": True}
+
+    if action == "upload_thumb_ref":   # raw image upload, see do_POST
+        name = Path(body["name"]).name
+        if Path(name).suffix.lower() not in REF_IMAGE_EXTS:
+            raise ValueError("참고 썸네일은 png·jpg·webp 만 됩니다")
+        if len(body["data"]) > MAX_SKILL_FILE:
+            raise ValueError("이미지가 너무 큽니다")
+        (thumb_dir(slug) / "ref").mkdir(parents=True, exist_ok=True)
+        (thumb_dir(slug) / "ref" / name).write_bytes(body["data"])
+        return {"ok": True}
+
+    if action == "delete_thumb_ref":
+        f = thumb_dir(slug) / "ref" / Path(body.get("name", "")).name
+        if f.suffix.lower() in REF_IMAGE_EXTS and f.exists():
+            f.unlink()
+        return {"ok": True}
+
+    if action == "make_thumb":
+        t = thumb_dir(slug)
+        t.mkdir(exist_ok=True)
+        meta = st.setdefault("thumbnail", {})
+        meta.update(style=str(body.get("style", meta.get("style", "")))[:2000],
+                    text=str(body.get("text", meta.get("text", "")))[:200])
+        fb = {k: str(v).strip() for k, v in (body.get("feedback") or {}).items() if k in THUMB_IDS and str(v).strip()}
+        if fb and not all((t / f"{k}.html").exists() for k in fb):
+            raise ValueError("고칠 시안이 없습니다 — '시안 3개 만들기'를 먼저 하세요")
+        if not fb:   # fresh drafts: (re)take stills from the chosen render, or drop them
+            version = str(body.get("version") or "")
+            if version:
+                vid = render_file(slug, version)
+                if not vid:
+                    raise ValueError(f"렌더 파일을 찾을 수 없습니다: {version}")
+                if meta.get("frames_from") != version or not list((t / "frames").glob("f*.jpg")):
+                    subprocess.run([py, str(TOOLS / "thumbnail.py"), "frames", str(vid), str(t / "frames"), "--n", "6"],
+                                   check=True, capture_output=True, timeout=120)
+                meta["frames_from"] = version
+            else:
+                shutil.rmtree(t / "frames", ignore_errors=True)
+                meta["frames_from"] = ""
+        save_state(slug, st)
+
+        def capture_all():
+            pages = [str(t / f"{i}.html") for i in THUMB_IDS if (t / f"{i}.html").exists()]
+            if not pages:
+                raise RuntimeError("시안 HTML 이 만들어지지 않았습니다")
+            subprocess.run([py, str(TOOLS / "thumbnail.py"), "capture", *pages], check=True, timeout=600)
+            s2 = load_state(slug)
+            s2.setdefault("thumbnail", {})["made_at"] = time.strftime("%Y-%m-%dT%H:%M:%S")
+            save_state(slug, s2)
+        cmd = generation_cmd(cfg, prompt_thumb(slug, st, fb or None),
+                         bash=[f"{shlex.quote(py)} {TOOLS / 'thumbnail.py'} capture *"])
+        return {"job": run_job(slug, "claude-thumb", cmd, ROOT, after=capture_all)}
+
+    if action == "choose_thumb":
+        i = str(body.get("id", ""))
+        png = thumb_dir(slug) / f"{i}.png"
+        if i not in THUMB_IDS or not png.exists():
+            raise ValueError("고를 시안이 없습니다")
+        subprocess.run([py, str(TOOLS / "thumbnail.py"), "final", str(png), str(thumb_dir(slug) / "thumbnail.jpg")],
+                       check=True, capture_output=True, timeout=60)
+        st.setdefault("thumbnail", {}).update(chosen=i, chosen_at=time.strftime("%Y-%m-%dT%H:%M:%S"))
+        save_state(slug, st)
+        return {"ok": True}
+
     if action == "approve":
         stage = body["stage"]
+        version = body.get("version")
+        if stage in ("render", "publish"):
+            if not isinstance(version, str) or not render_file(slug, version):
+                raise ValueError("확인할 렌더 버전을 먼저 선택하세요")
+            if stage == "publish" and st["stages"].get("render", {}).get("version", version) != version:
+                raise ValueError("게시할 버전을 6단계에서 먼저 승인하세요")
         if stage == "publish":
             checks = body.get("checks", [])
             if len(checks) != len(PUBLISH_CHECKS) or not all(checks):
@@ -1448,6 +1868,12 @@ def do_action(slug: str, action: str, body: dict) -> dict:
         if stage == "narration":
             st["narration_review"] = body.get("review", {})
         approve(st, stage, body.get("note", ""))
+        if stage in ("render", "publish"):
+            st["stages"][stage]["version"] = version
+        if stage == "render" and st.get("publish", {}).get("version") != version:
+            if st["stages"].get("publish", {}).get("status") == "approved":
+                st["stages"]["publish"]["status"] = "stale"
+        st["stages"][stage]["artifact"] = stage_artifact(d, st, stage, version)
         save_state(slug, st)
         return {"ok": True}
 
@@ -1549,6 +1975,8 @@ class Handler(BaseHTTPRequestHandler):
         path = unquote(urlparse(self.path).path)
         parts = [p for p in path.split("/") if p]
         def route():
+            if path == "/api/providers/status":
+                return self.send_json(provider_status(load_config()))
             if path in ("/", "/index.html"):
                 return self.send_file(STUDIO / "index.html")
             if parts[:2] == ["api", "lectures"] and len(parts) == 2:
@@ -1600,6 +2028,7 @@ class Handler(BaseHTTPRequestHandler):
             if parts == ["api", "config"]:
                 cfg = load_config()
                 cfg.update({k: v for k, v in self.body().items() if k in DEFAULT_CONFIG})
+                provider_name(cfg["provider"])
                 save_config(cfg)
                 return self.send_json(cfg)
             if len(parts) == 4 and parts[:2] == ["api", "lectures"] and parts[3] == "delete":
@@ -1616,6 +2045,12 @@ class Handler(BaseHTTPRequestHandler):
                     raise ValueError(f"파일이 비었거나 너무 큽니다 (최대 {MAX_UPLOAD >> 20}MB)")
                 name = unquote(self.headers.get("X-Filename") or "")
                 return self.send_json(do_action(parts[2], "upload_music", {"name": name, "data": self.rfile.read(n)}))
+            if len(parts) == 4 and parts[:2] == ["api", "lectures"] and parts[3] == "upload_thumb_ref":
+                n = int(self.headers.get("Content-Length") or 0)
+                if not n or n > MAX_UPLOAD:
+                    raise ValueError(f"파일이 비었거나 너무 큽니다 (최대 {MAX_UPLOAD >> 20}MB)")
+                name = unquote(self.headers.get("X-Filename") or "")
+                return self.send_json(do_action(parts[2], "upload_thumb_ref", {"name": name, "data": self.rfile.read(n)}))
             if len(parts) == 4 and parts[:2] == ["api", "lectures"] and parts[3] == "upload_ref":
                 n = int(self.headers.get("Content-Length") or 0)
                 if not n or n > MAX_UPLOAD:
@@ -1653,7 +2088,9 @@ class Handler(BaseHTTPRequestHandler):
                     except Exception:
                         manifest.write_text(backup, encoding="utf-8")
                         raise
-                cmd = claude_cmd(load_config(), prompt_analyze(s), bash=[])
+                cfg = load_config()
+                cfg["provider"] = provider_name(self.body().get("provider", cfg["provider"]))
+                cmd = generation_cmd(cfg, prompt_analyze(s), bash=[])
                 return self.send_json({"job": run_job(STUDIO_SLUG, "claude-style", cmd, ROOT, after=validate)})
             self.send_json({"error": "not found"}, HTTPStatus.NOT_FOUND)
         self.guard(route)

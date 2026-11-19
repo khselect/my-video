@@ -112,7 +112,7 @@ def detect_engine(project: Path) -> str:
     sys.exit("cannot tell the engine: pass --engine remotion|hyperframes")
 
 
-def finalize(project: Path, video: Path, a) -> dict:
+def finalize(project: Path, video: Path, a, native: bool = False) -> dict:
     """Loudness-normalize, then run the automatic checks. Returns {"qa": summary} for the manifest entry."""
     if getattr(a, "no_qa", False) and getattr(a, "no_loudnorm", False):
         return {}
@@ -129,7 +129,7 @@ def finalize(project: Path, video: Path, a) -> dict:
     if getattr(a, "no_qa", False):
         return {}
     lecture = project if (project / "scenes.json").exists() else None
-    qa = qa_render.run_qa(video, lecture)
+    qa = qa_render.run_qa(video, lecture, native=native)
     (video.parent / (video.name + ".qa.json")).write_text(json.dumps(qa, ensure_ascii=False, indent=2) + "\n",
                                                            encoding="utf-8")
     for k, c in qa["checks"].items():
@@ -192,7 +192,7 @@ def cmd_render(a) -> None:
     if proc.returncode or not out.exists():
         sys.exit(f"render failed (exit {proc.returncode}); nothing recorded")
     render_seconds = round((dt.datetime.now() - started).total_seconds(), 1)
-    checked = finalize(project, out, a)
+    checked = finalize(project, out, a, native=engine == "hyperframes")
 
     entry = {
         "version": version, "file": out.name, "kind": "render", "engine": engine, "composition": composition,
